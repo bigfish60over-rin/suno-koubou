@@ -57,6 +57,8 @@ section.pane{display:flex;flex-direction:column;gap:18px;padding-top:16px}
 .chip[aria-pressed="true"] i{color:var(--on-ink);opacity:.8}
 .chip.ex[aria-pressed="true"]{background:var(--exon);color:var(--exon-ink)}
 .chip.ex[aria-pressed="true"] i{color:var(--exon-ink)}
+.chips .subh{flex-basis:100%;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;margin-top:6px}
+.chips .subh:first-child{margin-top:0}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 input[type=text],input[type=number],select,textarea{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--surface);
   border:1px solid var(--line);border-radius:10px;padding:10px 12px}
@@ -203,6 +205,17 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       <button class="btn" id="kanaUndo" hidden>変換前に戻す</button>
     </div>
   </div>
+  <div class="card" id="impCard">
+    <h3 style="margin:0;font-size:16px">Claudeの返事を貼って取り込む</h3>
+    <p class="muted" style="margin:0">「指示文をコピー」でClaudeに作ってもらった返事を、そのまま全部貼ってください。前後に説明文や ``` が付いていても大丈夫です。[Verse] などのタグ付きの歌詞も取り込めます。</p>
+    <textarea id="impText" placeholder='{"title":"曲名","sections":[...]} または [Verse] 付きの歌詞'></textarea>
+    <div class="confirm" id="impConfirm" hidden>
+      <span id="impConfirmMsg">書いてある歌詞と構成を、貼った内容で置き換えます。よろしいですか？</span>
+      <div class="row"><button class="btn danger" id="impYes">置き換える</button><button class="btn" id="impNo">やめる</button></div>
+    </div>
+    <div class="row"><button class="btn pri" id="impBtn">取り込む</button><button class="btn" id="impClear">貼った文を消す</button></div>
+    <div class="aistat" id="impStatus" role="status" aria-live="polite"></div>
+  </div>
   <div class="grp">
     <h2>曲の構成<span class="hint">各パートに歌詞を書きます。空欄ならタグだけ出ます</span></h2>
     <div class="row">
@@ -274,10 +287,21 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 (function(){
 "use strict";
 var GROUPS=[
- {id:"genre",name:"ジャンル",hint:"1〜2個がおすすめ",items:[
-  ["J-POP","j-pop"],["J-ROCK","j-rock"],["シティポップ","city pop"],["演歌","enka"],["アニソン","anime song"],["ロック","rock"],["ハードロック","hard rock"],
-  ["パンク","punk rock"],["ブルースロック","blues rock"],["ファンク","funk"],["レゲエ","reggae"],["ヒップホップ","hip hop"],["ローファイHipHop","lo-fi hip hop"],
-  ["EDM","edm"],["シンセウェイヴ","synthwave"],["ジャズ","jazz"],["ボサノヴァ","bossa nova"],["フォーク","folk"],["カントリー","country"],["メタル","metal"],["バラード","ballad"]]},
+ {id:"genre",name:"ジャンル",hint:"1〜2個がおすすめ",search:true,items:[
+  ["#ロック"],["ロック","rock"],["J-ROCK","j-rock"],["ハードロック","hard rock"],["パンク","punk rock"],["ポップパンク","pop punk"],["ブルースロック","blues rock"],
+  ["ガレージロック","garage rock"],["グランジ","grunge"],["オルタナ","alternative rock"],["インディーロック","indie rock"],["ロックンロール","rock and roll"],["ロカビリー","rockabilly"],
+  ["サーフロック","surf rock"],["サイケ","psychedelic rock"],["プログレ","progressive rock"],["ポストロック","post-rock"],["シューゲイザー","shoegaze"],["エモ","emo"],["マスロック","math rock"],["スタジアムロック","arena rock"],
+  ["#メタル"],["メタル","metal"],["ヘヴィメタル","heavy metal"],["スラッシュメタル","thrash metal"],["メタルコア","metalcore"],["ニューメタル","nu metal"],["シンフォニックメタル","symphonic metal"],["ドゥームメタル","doom metal"],
+  ["#ポップ"],["J-POP","j-pop"],["ポップ","pop"],["シティポップ","city pop"],["アニソン","anime song"],["アイドルポップ","idol pop"],["K-POP","k-pop"],["ダンスポップ","dance pop"],["シンセポップ","synth-pop"],["エレクトロポップ","electropop"],["バラード","ballad"],["歌謡曲","kayokyoku"],
+  ["#ダンス・電子"],["EDM","edm"],["ハウス","house"],["ディープハウス","deep house"],["テクノ","techno"],["トランス","trance"],["ドラムンベース","drum and bass"],["ダブステップ","dubstep"],
+  ["フューチャーベース","future bass"],["シンセウェイヴ","synthwave"],["ユーロビート","eurobeat"],["ハイパーポップ","hyperpop"],["チップチューン","chiptune"],["アンビエント","ambient"],
+  ["#ヒップホップ・ブラック"],["ヒップホップ","hip hop"],["トラップ","trap"],["ブーンバップ","boom bap"],["ローファイHipHop","lo-fi hip hop"],["R&B","r&b"],["ネオソウル","neo soul"],["ソウル","soul"],
+  ["ファンク","funk"],["ディスコ","disco"],["ゴスペル","gospel"],["モータウン","motown"],
+  ["#ジャズ・ブルース"],["ジャズ","jazz"],["フュージョン","jazz fusion"],["スウィング","swing"],["ビッグバンド","big band"],["スムースジャズ","smooth jazz"],["ブルース","blues"],["デルタブルース","delta blues"],
+  ["#ワールド"],["レゲエ","reggae"],["スカ","ska"],["ボサノヴァ","bossa nova"],["サンバ","samba"],["ラテンポップ","latin pop"],["レゲトン","reggaeton"],["フラメンコ","flamenco"],["ケルト","celtic"],["アフロビーツ","afrobeats"],["ハワイアン","hawaiian"],
+  ["#フォーク・カントリー"],["フォーク","folk"],["フォークロック","folk rock"],["カントリー","country"],["ブルーグラス","bluegrass"],["弾き語り","singer-songwriter"],
+  ["#和もの"],["演歌","enka"],["民謡","japanese folk song"],["和風ロック","japanese traditional rock"],["祭り囃子","matsuri"],
+  ["#その他"],["映画音楽風","cinematic"],["オーケストラ","orchestral"],["ゲーム音楽風","video game music"],["童謡風","children's song"],["マーチ","march"]]},
  {id:"region",name:"地域・地名のジャンル",hint:"ジャンル欄と合わせて1〜2個まで",items:[
   ["UKインディーロック","british indie rock"],["UKオルタナ","british alternative rock"],["イングランドのインディー","english indie rock"],
   ["アイルランドのロック","irish rock"],["スコットランドのロック","scottish rock"],["UKドリル","UK drill"],
@@ -514,8 +538,10 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp
 function renderGroups(){
   var h="";
   GROUPS.forEach(function(g,gi){
-    h+='<div class="grp"><h2><span class="n">'+String(gi+1).padStart(2,"0")+'</span>'+g.name+'<span class="hint">'+g.hint+'</span></h2><div class="chips">';
-    g.items.forEach(function(it){h+='<button type="button" class="chip'+(g.ex?" ex":"")+'" data-g="'+g.id+'" data-v="'+esc(it[1])+'" aria-pressed="false"><b>'+esc(it[0])+'</b><i>'+esc(it[1])+'</i></button>';});
+    h+='<div class="grp"><h2><span class="n">'+String(gi+1).padStart(2,"0")+'</span>'+g.name+'<span class="hint">'+g.hint+'</span></h2>';
+    if(g.search)h+='<input type="text" id="gFilter-'+g.id+'" data-filter="'+g.id+'" placeholder="ジャンルを探す（例: メタル, jazz）" autocomplete="off">';
+    h+='<div class="chips" id="chips-'+g.id+'">';
+    g.items.forEach(function(it){if(it.length===1){h+='<span class="subh">'+esc(it[0].slice(1))+'</span>';return;}h+='<button type="button" class="chip'+(g.ex?" ex":"")+'" data-g="'+g.id+'" data-v="'+esc(it[1])+'" aria-pressed="false"><b>'+esc(it[0])+'</b><i>'+esc(it[1])+'</i></button>';});
     h+='</div></div>';
   });
   $("groups").innerHTML=h;
@@ -598,6 +624,18 @@ $("groups").addEventListener("click",function(e){
   if(i>=0)arr.splice(i,1);else arr.push(c.dataset.v);
   syncChips();update();
 });
+$("groups").addEventListener("input",function(e){
+  var f=e.target.dataset&&e.target.dataset.filter;if(!f)return;
+  var q=e.target.value.trim().toLowerCase(),box=$("chips-"+f),lastH=null,any=false,shown=0;
+  Array.prototype.forEach.call(box.children,function(el){
+    if(el.classList.contains("subh")){if(lastH)lastH.hidden=q&&!any;lastH=el;any=false;return;}
+    var hit=!q||el.textContent.toLowerCase().indexOf(q)>=0||el.getAttribute("aria-pressed")==="true";
+    el.hidden=!hit;if(hit){any=true;shown++;}
+  });
+  if(lastH)lastH.hidden=q&&!any;
+  var nm=$("nohit-"+f);if(!nm){nm=document.createElement("p");nm.id="nohit-"+f;nm.className="muted";nm.style.margin="0";box.parentNode.appendChild(nm);}
+  nm.textContent=q&&!shown?"見つかりません。「自由に追加」に英語で書けば入れられます":"";
+});
 $("inst").addEventListener("change",function(){S.inst=this.checked;renderSecs();update();});
 $("bpmOn").addEventListener("change",function(){S.bpmOn=this.checked;$("bpm").disabled=!S.bpmOn;update();});
 $("bpm").addEventListener("input",function(){S.bpm=+this.value;$("bpmV").textContent=S.bpm;update();});
@@ -618,10 +656,10 @@ $("presets").addEventListener("click",function(e){
 });
 $("random").addEventListener("click",function(){
   var g=function(id){for(var i=0;i<GROUPS.length;i++)if(GROUPS[i].id===id)return GROUPS[i].items;return [];};
-  var pick=function(a){return a[Math.floor(Math.random()*a.length)][1];};
+  var pick=function(a){a=a.filter(function(x){return x.length===2;});return a[Math.floor(Math.random()*a.length)][1];};
   GROUPS.forEach(function(x){S.sel[x.id]=[];});
   S.sel.genre=[pick(g("genre"))];S.sel.mood=[pick(g("mood"))];
-  var ins=g("inst").slice();for(var k=0;k<2;k++){S.sel.inst.push(ins.splice(Math.floor(Math.random()*ins.length),1)[0][1]);}
+  var ins=g("inst").filter(function(x){return x.length===2;});for(var k=0;k<2;k++){S.sel.inst.push(ins.splice(Math.floor(Math.random()*ins.length),1)[0][1]);}
   S.sel.vocal=[Math.random()<.5?"male vocals":"female vocals"];S.sel.prod=[pick(g("prod"))];
   S.bpm=70+Math.floor(Math.random()*100);S.bpmOn=true;
   syncForm();toast("おまかせで選びました");
@@ -714,7 +752,7 @@ $("aiStop").addEventListener("click",function(){if(aiCtl)aiCtl.abort();});
 $("aiCopy").addEventListener("click",function(){
   if(!S.ly.theme.trim()){aiStat("テーマを書いてください。",true);return;}
   copyText(buildLyPrompt(S),"作詞の指示文");
-  aiStat("コピーしました。Claudeのチャットに貼ると、歌詞がJSON形式で返ってきます。");
+  aiStat("コピーしました。Claudeのチャットに貼り、返ってきた返事を下の「貼って取り込む」欄に貼ってください。");
 });
 var kanaBackup=null;
 $("kanaConv").addEventListener("click",function(){
@@ -738,7 +776,7 @@ $("kanaUndo").addEventListener("click",function(){
   kanaBackup=null;$("kanaUndo").hidden=true;renderSecs();update();aiStat("変換前に戻しました。");
 });
 function runAI(){
-  if(!SAMPLE){aiStat(sampleChecked?"この画面ではAI作詞が使えません。「指示文をコピー」をClaudeのチャットに貼ってください。":"準備中です。数秒後にもう一度押してください。",true);return;}
+  if(!SAMPLE){aiStat(sampleChecked?"この画面ではAI作詞が使えません。「指示文をコピー」をClaudeのチャットに貼り、返事を下の欄に貼れば取り込めます。":"準備中です。数秒後にもう一度押してください。",true);return;}
   var prompt=buildLyPrompt(S);
   aiCtl=new AbortController();
   $("aiGen").disabled=true;$("aiStop").hidden=false;
@@ -758,6 +796,60 @@ function runAI(){
     aiStat(ERR[c]||"通信がうまくいきませんでした。もう一度押してください。",true);
   }).then(function(){$("aiGen").disabled=false;$("aiStop").hidden=true;aiCtl=null;});
 }
+
+/* ---- 貼り付け取り込み ---- */
+var TAG_FIX={};SEC_TAGS.forEach(function(t){TAG_FIX[t.toLowerCase()]=t;});
+function fixTag(t){t=String(t||"").replace(/^\[|\]$/g,"").trim();return TAG_FIX[t.toLowerCase()]||t;}
+function parseImport(txt){
+  txt=String(txt||"").replace(/\r\n?/g,"\n");
+  var a=txt.indexOf("{"),b=txt.lastIndexOf("}");
+  if(a>=0&&b>a){
+    try{var o=JSON.parse(txt.slice(a,b+1));
+      if(o&&Array.isArray(o.sections)){
+        var secs=o.sections.filter(function(x){return x&&typeof x.tag==="string";}).map(function(x){return {tag:fixTag(x.tag),text:typeof x.text==="string"?x.text.trim():""};});
+        if(secs.length)return {title:typeof o.title==="string"?o.title.trim():"",secs:secs};
+      }
+    }catch(e){}
+  }
+  /* [Tag] 形式の歌詞 */
+  var lines=txt.split("\n"),secs=[],cur=null,title="";
+  lines.forEach(function(l){
+    var m=l.trim().match(/^\[([^\]\n]{1,40})\]$/);
+    if(m){cur={tag:fixTag(m[1]),text:[]};secs.push(cur);return;}
+    if(cur)cur.text.push(l);
+    else{var t=l.trim().match(/^(?:曲名|タイトル|title)\s*[:：]\s*(.+)$/i);if(t)title=t[1].trim();}
+  });
+  secs=secs.map(function(s){return {tag:s.tag,text:s.text.join("\n").replace(/```/g,"").trim()};});
+  if(secs.length)return {title:title,secs:secs};
+  return null;
+}
+function applyImport(st,res){
+  st.secs=res.secs.map(function(s){return {tag:s.tag,text:NO_LYR.indexOf(s.tag)>=0?"":s.text};});
+  if(res.title)st.title=res.title.slice(0,100);
+  if(st.inst)st.inst=false;
+  return st.secs.length;
+}
+var impPending=null;
+function impStat(m,err){var el=$("impStatus");el.textContent=m;el.classList.toggle("err",!!err);}
+function doImport(res){
+  var wasInst=S.inst,n=applyImport(S,res);impPending=null;$("impConfirm").hidden=true;
+  syncForm();$("impText").value="";
+  var kl=S.ly.kana?kanjiLeft(S):0;
+  impStat("取り込みました（"+n+"パート"+(res.title?"・曲名も":"")+"）。"+(wasInst?"インスト設定はオフにしました。":"")+(kl?"漢字が"+kl+"文字あります。":"③完成タブでコピーできます。"));
+  toast("歌詞を取り込みました");
+}
+$("impBtn").addEventListener("click",function(){
+  var txt=$("impText").value;
+  if(!txt.trim()){impStat("先にClaudeの返事を貼ってください。",true);return;}
+  var res=parseImport(txt);
+  if(!res){impStat("読み取れませんでした。Claudeの返事を最初から最後まで全部貼ってください。",true);return;}
+  var has=S.secs.some(function(s){return s.text.trim();});
+  if(has){impPending=res;$("impConfirmMsg").textContent="今の歌詞（"+S.secs.length+"パート）を、貼った内容（"+res.secs.length+"パート）で置き換えます。よろしいですか？";$("impConfirm").hidden=false;return;}
+  doImport(res);
+});
+$("impYes").addEventListener("click",function(){if(impPending)doImport(impPending);});
+$("impNo").addEventListener("click",function(){impPending=null;$("impConfirm").hidden=true;});
+$("impClear").addEventListener("click",function(){$("impText").value="";impStat("");});
 
 /* ---- 保存 ---- */
 function getSaved(){try{var a=JSON.parse(lsGet(LS_SAVED));return Array.isArray(a)?a:[];}catch(e){return [];}}
@@ -794,7 +886,7 @@ $("resetRow").addEventListener("click",function(e){
 });
 
 renderGroups();syncForm();
-window.__suno={buildKanaPrompt:buildKanaPrompt,applyKana:applyKana,kanjiLeft:kanjiLeft,buildLyPrompt:buildLyPrompt,applyLyrics:applyLyrics,fitStyle:fitStyle,rawStyle:rawStyle,buildStyle:buildStyle,buildExclude:buildExclude,buildLyrics:buildLyrics,checks:checks,blank:blank,normalize:normalize};
+window.__suno={parseImport:parseImport,applyImport:applyImport,GROUPS:GROUPS,buildKanaPrompt:buildKanaPrompt,applyKana:applyKana,kanjiLeft:kanjiLeft,buildLyPrompt:buildLyPrompt,applyLyrics:applyLyrics,fitStyle:fitStyle,rawStyle:rawStyle,buildStyle:buildStyle,buildExclude:buildExclude,buildLyrics:buildLyrics,checks:checks,blank:blank,normalize:normalize};
 })();
 </script>
 <script>
