@@ -166,6 +166,19 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 
 <!-- ② 歌詞 -->
 <section class="pane" id="p-lyr" hidden>
+  <div class="card" id="newCard">
+    <b>新しい曲を始める</b>
+    <p class="muted" style="margin:0">前の曲の曲名やテーマが残っていると、指示文がそれを使い続けます。新しい曲の時はここで消してください。</p>
+    <div class="row" id="newRow">
+      <button class="btn danger" data-new="lyr">歌詞まわりだけリセット</button>
+      <button class="btn danger" data-new="all">全部リセット</button>
+    </div>
+    <p class="muted" style="margin:0">歌詞まわり＝曲名・テーマ・入れたい言葉・避けたい言葉・歌詞（曲調と作詞の好みは残す）／全部＝曲調もふくめて最初の状態に。保存した曲は消えません。</p>
+    <div class="confirm" id="newConfirm" hidden>
+      <span id="newMsg"></span>
+      <div class="row"><button class="btn danger" id="newYes">リセットする</button><button class="btn" id="newNo">やめる</button></div>
+    </div>
+  </div>
   <div class="grp">
     <h2>曲名<span class="hint" id="titleHint"></span></h2>
     <input type="text" id="title" placeholder="例: 港の朝マヅメ" autocomplete="off">
@@ -310,9 +323,19 @@ var GROUPS=[
   ["ジャパニーズシティポップ","japanese city pop"],["東京ロック","tokyo rock"],["ジャパニーズパンク","japanese punk rock"],["ジャパニーズインディー","japanese indie rock"],
   ["オーストラリアンロック","australian rock"],["ドイツのロック","deutschrock"],["ラテンロック","latin rock"]]},
  {id:"era",name:"年代感",hint:"任意",items:[["70年代","70s"],["80年代","80s"],["90年代","90s"],["2000年代","2000s"],["今風","modern"]]},
- {id:"mood",name:"雰囲気",hint:"1〜2個",items:[
-  ["ノリノリ","upbeat"],["エネルギッシュ","energetic"],["楽しい","happy"],["懐かしい","nostalgic"],["切ない","melancholic"],["エモい","emotional"],
-  ["夢見心地","dreamy"],["まったり","chill"],["壮大","epic"],["ダーク","dark"],["攻撃的","aggressive"],["ロマンチック","romantic"],["遊び心","playful"],["前向き","uplifting"],["穏やか","calm"]]},
+ {id:"mood",name:"雰囲気",hint:"1〜2個（反対の組み合わせは警告します）",search:true,items:[
+  ["#明るい・元気"],["ノリノリ","upbeat"],["エネルギッシュ","energetic"],["楽しい","happy"],["前向き","uplifting"],["遊び心","playful"],["高揚感","euphoric"],
+  ["勝利感","triumphant"],["気ままな","carefree"],["晴れやか","sunny"],["グルーヴィー","groovy"],["弾むような","bouncy"],["お祭り気分","festive"],
+  ["#切ない・エモい"],["切ない","melancholic"],["懐かしい","nostalgic"],["エモい","emotional"],["ほろ苦い","bittersweet"],["胸が張り裂ける","heartbreaking"],
+  ["孤独","lonely"],["物思い","wistful"],["感傷的","sentimental"],["恋しい","longing"],["哀愁","sorrowful"],["泣ける","tearjerker"],
+  ["#熱い・激しい"],["攻撃的","aggressive"],["激しい","intense"],["力強い","powerful"],["反骨","rebellious"],["怒り","angry"],["荒々しい","fierce"],
+  ["ヒーロー","heroic"],["疾走感","driving"],["緊張感","tense"],
+  ["#落ち着き・大人"],["穏やか","calm"],["まったり","chill"],["ゆったり","laid-back"],["まろやか","mellow"],["なめらか","smooth"],["洗練","sophisticated"],
+  ["ざらついた渋さ","gritty"],["魂のこもった","soulful"],["温かい","warm"],["大人の余裕","cool"],
+  ["#幻想・壮大"],["夢見心地","dreamy"],["壮大","epic"],["透明感","ethereal"],["謎めいた","mysterious"],["荘厳","majestic"],["希望","hopeful"],
+  ["神聖","spiritual"],["浮遊感","floating"],["サイケな","trippy"],
+  ["#ダーク・妖しい"],["ダーク","dark"],["心に残る","haunting"],["不気味","eerie"],["不穏","ominous"],["陰うつ","gloomy"],["色っぽい","sultry"],["妖艶","seductive"],
+  ["#ロマンチック"],["ロマンチック","romantic"],["優しい","tender"],["甘い","sweet"],["情熱的","passionate"],["親密","intimate"]]},
  {id:"inst",name:"楽器",hint:"2〜3個",items:[
   ["エレキギター","electric guitar"],["歪みギター","distorted guitar"],["クリーンなギターリフ","clean guitar riffs"],["アコギ","acoustic guitar"],["ギターソロ","guitar solo"],
   ["ベース","bass guitar"],["スラップベース","slap bass"],["ドラム","drums"],["ピアノ","piano"],["エレピ","rhodes"],["シンセ","synth"],["ストリングス","strings"],
@@ -337,6 +360,14 @@ var CONFLICTS=[
  ["calm","energetic","「穏やか」と「エネルギッシュ」はぶつかります"],
  ["happy","melancholic","「楽しい」と「切ない」はぶつかります"],
  ["happy","dark","「楽しい」と「ダーク」はぶつかります"],
+ ["happy","gloomy","「楽しい」と「陰うつ」はぶつかります"],
+ ["happy","heartbreaking","「楽しい」と「胸が張り裂ける」はぶつかります"],
+ ["energetic","laid-back","「エネルギッシュ」と「ゆったり」はぶつかります"],
+ ["aggressive","tender","「攻撃的」と「優しい」はぶつかります"],
+ ["calm","intense","「穏やか」と「激しい」はぶつかります"],
+ ["chill","intense","「まったり」と「激しい」はぶつかります"],
+ ["sunny","gloomy","「晴れやか」と「陰うつ」はぶつかります"],
+ ["carefree","tense","「気ままな」と「緊張感」はぶつかります"],
  ["japanese lyrics","english lyrics","日本語と英語の両方が入っています（混在させたい時以外はどちらか1つに）"]
 ];
 var SEC_TAGS=["Intro","Verse","Pre-Chorus","Chorus","Post-Chorus","Bridge","Guitar Solo","Instrumental","Break","Interlude","Final Chorus","Outro","End"];
@@ -361,7 +392,11 @@ var LIM={v6:{style:1000,lyr:5000,title:100}};
 var LY_OPTS=[
  {k:"lang",name:"言葉のバランス",items:[["日本語だけ","ja"],["日本語＋英語少し","ja+"],["英語フレーズ多め","mix"],["英語中心","en+"],["英語だけ","en"]]},
  {k:"pov",name:"視点（主人公）",items:[["おまかせ","auto"],["俺","俺"],["僕","僕"],["私","私"],["語り手なし","none"]]},
- {k:"tone",name:"雰囲気（2つまで）",multi:2,items:[["明るい","明るく前向き"],["熱い","熱く力強い"],["切ない","切なく胸に残る"],["笑える","ユーモアがあって笑える"],["渋い","渋く大人っぽい"],["詩的","情景描写が多く詩的"],["ストレート","飾らずストレート"]]},
+ {k:"tone",name:"雰囲気（2つまで）",multi:2,items:[["明るい","明るく前向き"],["熱い","熱く力強い"],["切ない","切なく胸に残る"],["笑える","ユーモアがあって笑える"],
+  ["渋い","渋く大人っぽい"],["詩的","情景描写が多く詩的"],["ストレート","飾らずストレート"],["哀愁","哀愁が漂う"],["懐かしい","懐かしく郷愁を誘う"],
+  ["青春","青春のまぶしさと痛み"],["応援歌","聴く人の背中を押す応援歌"],["反骨","怒りや反骨心をぶつける"],["希望","暗さの中に希望が見える"],
+  ["哲学的","哲学的で考えさせられる"],["皮肉","皮肉やユーモアで社会を斬る"],["幻想的","不思議で幻想的"],["ダーク","ダークで不穏"],
+  ["ロマンチック","ロマンチックで甘い"],["優しい","優しく包み込む"],["大人の色気","大人の色気がある"],["語り口調","語りかけるような口調"]]},
  {k:"rhyme",name:"韻",items:[["気にしない","no"],["韻を踏む","yes"]]},
  {k:"lines",name:"1パートの行数",items:[["短め（2行）","2"],["ふつう（4行）","4"],["長め（6行）","6"]]}
 ];
@@ -539,7 +574,7 @@ function renderGroups(){
   var h="";
   GROUPS.forEach(function(g,gi){
     h+='<div class="grp"><h2><span class="n">'+String(gi+1).padStart(2,"0")+'</span>'+g.name+'<span class="hint">'+g.hint+'</span></h2>';
-    if(g.search)h+='<input type="text" id="gFilter-'+g.id+'" data-filter="'+g.id+'" placeholder="ジャンルを探す（例: メタル, jazz）" autocomplete="off">';
+    if(g.search)h+='<input type="text" id="gFilter-'+g.id+'" data-filter="'+g.id+'" placeholder="'+(g.id==="mood"?"雰囲気を探す（例: 切ない, dark）":"ジャンルを探す（例: メタル, jazz）")+'" autocomplete="off">';
     h+='<div class="chips" id="chips-'+g.id+'">';
     g.items.forEach(function(it){if(it.length===1){h+='<span class="subh">'+esc(it[0].slice(1))+'</span>';return;}h+='<button type="button" class="chip'+(g.ex?" ex":"")+'" data-g="'+g.id+'" data-v="'+esc(it[1])+'" aria-pressed="false"><b>'+esc(it[0])+'</b><i>'+esc(it[1])+'</i></button>';});
     h+='</div></div>';
@@ -797,6 +832,26 @@ function runAI(){
   }).then(function(){$("aiGen").disabled=false;$("aiStop").hidden=true;aiCtl=null;});
 }
 
+/* ---- 新しい曲を始める ---- */
+var newMode=null;
+function resetLyrics(st){
+  st.title="";st.ly.theme="";st.ly.inc="";st.ly.avoid="";
+  st.secs=st.secs.length?st.secs.map(function(x){return {tag:x.tag,text:""};}):TPL.std.map(function(t){return {tag:t,text:""};});
+  return st;
+}
+$("newRow").addEventListener("click",function(e){
+  var b=e.target.closest("[data-new]");if(!b)return;newMode=b.dataset.new;
+  $("newMsg").textContent=newMode==="all"?"曲調・歌詞・曲名を全部消して最初の状態に戻します。よろしいですか？":"曲名・テーマ・入れたい言葉・避けたい言葉・歌詞を消します。曲調は残ります。よろしいですか？";
+  $("newConfirm").hidden=false;
+});
+$("newNo").addEventListener("click",function(){newMode=null;$("newConfirm").hidden=true;});
+$("newYes").addEventListener("click",function(){
+  if(newMode==="all")S=blank();else resetLyrics(S);
+  var m=newMode;newMode=null;$("newConfirm").hidden=true;
+  $("impText").value="";impStat("");aiStat("");kanaBackup=null;$("kanaUndo").hidden=true;
+  syncForm();toast(m==="all"?"全部リセットしました":"歌詞まわりをリセットしました");
+});
+
 /* ---- 貼り付け取り込み ---- */
 var TAG_FIX={};SEC_TAGS.forEach(function(t){TAG_FIX[t.toLowerCase()]=t;});
 function fixTag(t){t=String(t||"").replace(/^\[|\]$/g,"").trim();return TAG_FIX[t.toLowerCase()]||t;}
@@ -886,7 +941,7 @@ $("resetRow").addEventListener("click",function(e){
 });
 
 renderGroups();syncForm();
-window.__suno={parseImport:parseImport,applyImport:applyImport,GROUPS:GROUPS,buildKanaPrompt:buildKanaPrompt,applyKana:applyKana,kanjiLeft:kanjiLeft,buildLyPrompt:buildLyPrompt,applyLyrics:applyLyrics,fitStyle:fitStyle,rawStyle:rawStyle,buildStyle:buildStyle,buildExclude:buildExclude,buildLyrics:buildLyrics,checks:checks,blank:blank,normalize:normalize};
+window.__suno={resetLyrics:resetLyrics,parseImport:parseImport,applyImport:applyImport,GROUPS:GROUPS,buildKanaPrompt:buildKanaPrompt,applyKana:applyKana,kanjiLeft:kanjiLeft,buildLyPrompt:buildLyPrompt,applyLyrics:applyLyrics,fitStyle:fitStyle,rawStyle:rawStyle,buildStyle:buildStyle,buildExclude:buildExclude,buildLyrics:buildLyrics,checks:checks,blank:blank,normalize:normalize};
 })();
 </script>
 <script>
