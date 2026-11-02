@@ -238,9 +238,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     </div>
   </div>
   <div class="card" id="impCard">
-    <h3 style="margin:0;font-size:16px">Claudeの返事を貼って取り込む</h3>
-    <p class="muted" style="margin:0">「指示文をコピー」でClaudeに作ってもらった返事を、そのまま全部貼ってください。前後に説明文や ``` が付いていても大丈夫です。[Verse] などのタグ付きの歌詞も取り込めます。</p>
-    <textarea id="impText" placeholder='{"title":"曲名","sections":[...]} または [Verse] 付きの歌詞'></textarea>
+    <h3 style="margin:0;font-size:16px">歌詞を貼って取り込む</h3>
+    <p class="muted" style="margin:0">Claude・ChatGPT・Geminiなど、どのAIで作った歌詞でも、返事をそのまま全部貼ってください。[Verse]、【サビ】、Aメロ：、Verse 1、**Chorus** などの見出しを読み取って、パートに分けます。前後の説明文や ``` も外します。</p>
+    <p class="muted" style="margin:0">他のAIに作ってもらう時は、上の「歌詞だけの指示文をコピー」を貼ると、条件どおりの形で返ってきやすくなります。</p>
+    <textarea id="impText" placeholder="例：&#10;タイトル：港の朝&#10;【Aメロ】&#10;1行目&#10;2行目&#10;【サビ】&#10;…"></textarea>
     <div class="confirm" id="impConfirm" hidden>
       <span id="impConfirmMsg">書いてある歌詞と構成を、貼った内容で置き換えます。よろしいですか？</span>
       <div class="row"><button class="btn danger" id="impYes">置き換える</button><button class="btn" id="impNo">やめる</button></div>
@@ -1092,23 +1093,89 @@ function parseImport(txt){
       }
     }catch(e){}
   }
-  /* [Tag] 形式の歌詞 */
-  var lines=txt.split("\n"),secs=[],cur=null,title="";
+  return parseLoose(txt);
+}
+/* 見出しの読み取り（どのAIの書き方でも） */
+var HEAD_MAP=[
+ [/^(final|last)chorus$|^(ラスト|最後の|大)サビ$|^ラスサビ$|^outrochorus$/,"Final Chorus"],
+ [/^pre-?chorus$|^bメロ$|^プレコーラス$|^サビ前$/,"Pre-Chorus"],
+ [/^post-?chorus$|^サビ後$|^ポストコーラス$/,"Post-Chorus"],
+ [/^(chorus|hook|refrain)$|^サビ$|^コーラス$|^フック$|^リフレイン$/,"Chorus"],
+ [/^verse$|^aメロ$|^(ヴァース|バース)$/,"Verse"],
+ [/^bridge$|^(c|d)メロ$|^ブリッジ$/,"Bridge"],
+ [/^intro$|^イントロ$|^前奏$|^オープニング$/,"Intro"],
+ [/^outro$|^アウトロ$|^後奏$|^エンディング$/,"Outro"],
+ [/^(guitar)?solo$|^(ギター)?ソロ$/,"Guitar Solo"],
+ [/^instrumental$|^間奏$|^インスト$/,"Instrumental"],
+ [/^interlude$|^インタールード$/,"Interlude"],
+ [/^break$|^ブレイク$/,"Break"],
+ [/^end$|^終わり$|^おわり$/,"End"],
+ [/^fadeout$|^フェードアウト$/,"Fade Out"]
+];
+function headName(raw){
+  var parts=String(raw||"").split(/[\/／(（|｜]/);
+  for(var j=0;j<parts.length;j++){var r=headName1(parts[j]);if(r)return r;}
+  return null;
+}
+function headName1(raw){
+  var k=String(raw||"").normalize("NFKC").toLowerCase().replace(/[0-9]+|[①-⑳]|番|第|[\s_・\.\-]+/g,function(m){return /-/.test(m)&&m.length===1?"-":"";});
+  k=k.replace(/-/g,"-");
+  var k2=k.replace(/-/g,"");
+  for(var i=0;i<HEAD_MAP.length;i++){if(HEAD_MAP[i][0].test(k)||HEAD_MAP[i][0].test(k2))return HEAD_MAP[i][1];}
+  return null;
+}
+function readHeading(line){
+  var l0=line.trim(),l=l0.replace(/^#{1,6}\s*/,"").replace(/^\*\*(.+)\*\*$/,"$1").replace(/^__(.+)__$/,"$1").trim(),deco=l!==l0;if(!l||l.length>60)return null;
+  var m=l.match(/^\[([^\]\n]{1,50})\]$/);
+  if(m){var c=m[1].indexOf(":"),base=c>=0?m[1].slice(0,c):m[1],rest=c>=0?m[1].slice(c):"",hn=headName(base);
+    return {raw:(hn||base.trim())+rest,known:!!hn,bracket:true};}
+  var plain=l.replace(/^#{1,6}\s*/,"").replace(/^\*\*(.+)\*\*$/,"$1").replace(/^__(.+)__$/,"$1").trim();
+  var w=plain.match(/^(?:【(.+)】|［(.+)］|〔(.+)〕|＜(.+)＞|<(.+)>|《(.+)》|\((.+)\)|（(.+)）|「(.+)」)$/);
+  var inner=w?(w[1]||w[2]||w[3]||w[4]||w[5]||w[6]||w[7]||w[8]||w[9]):plain.replace(/\s*[:：]\s*$/,"");
+  if(inner.length>30)return null;
+  var colon=/[:：]\s*$/.test(plain)||/[:：]/.test(inner);
+  if(!deco&&!w&&!colon){var pl=inner.normalize("NFKC").trim();if(/\d/.test(pl)&&!/^[A-Za-z][A-Za-z\- ]*\s\d+$/.test(pl))return null;}
+  var c2=inner.search(/[:：]/),base2=c2>=0?inner.slice(0,c2):inner,hn2=headName(base2);
+  if(!hn2)return null;
+  return {raw:hn2+(c2>=0?":"+inner.slice(c2+1):""),known:true,bracket:!!w};
+}
+var CHATTER=/(いかが|でしょうか|ご希望|お気軽|修正|調整|ポイント|解説|補足|メモ|お知らせください|ご自由に|^note\b|let me know|hope you|feel free|here (is|are)|ここに|以下)/i;
+function cleanLine(l){return l.replace(/\*\*/g,"").replace(/^\s*[-•・]\s+/,"").replace(/\s+$/,"");}
+function parseLoose(txt){
+  var lines=txt.replace(/```[a-z]*\n?/gi,"\n").split("\n"),secs=[],cur=null,title="",pre=[],notes=[];
   lines.forEach(function(l){
-    var m=l.trim().match(/^\[([^\]\n]{1,40})\]$/);
-    if(m){var tg=splitTag(m[1]),low=tg.tag.toLowerCase();
+    if(/^\s*(---+|\*\*\*+|===+)\s*$/.test(l))return;
+    var h=readHeading(l);
+    if(h){var tg=splitTag(h.raw),low=tg.tag.toLowerCase();
       if(low==="fade out"&&cur){if(cur.dir.indexOf("fade")<0)cur.dir.push("fade");return;}
-      if(low==="end"&&cur&&(cur.dir.indexOf("fade")>=0||cur.dir.indexOf("cut")>=0)){return;}
+      if(low==="end"&&cur&&(cur.dir.indexOf("fade")>=0||cur.dir.indexOf("cut")>=0))return;
       cur={tag:tg.tag,dir:tg.dir,note:tg.note,text:[]};secs.push(cur);return;}
-    if(cur)cur.text.push(l);
-    else{var t=l.trim().match(/^(?:曲名|タイトル|title)\s*[:：]\s*(.+)$/i);if(t)title=t[1].trim();}
+    if(cur){cur.text.push(cleanLine(l));return;}
+    var t=l.trim().replace(/\*\*/g,"").replace(/^#{1,6}\s*/,"").match(/^(?:曲名|タイトル|題名|曲タイトル|song title|title)\s*[:：]\s*(.+)$/i);
+    if(t){title=t[1];return;}
+    var h1=l.match(/^#\s+(.+)$/);if(h1&&!title){title=h1[1];return;}
+    pre.push(cleanLine(l));
   });
+  title=title.replace(/^[「『"“]|[」』"”]$/g,"").replace(/\*\*/g,"").trim();
+  var noHead=false;
+  if(!secs.length){
+    var paras=pre.join("\n").split(/\n\s*\n/).map(function(x){return x.trim();}).filter(Boolean);
+    paras=paras.filter(function(p){return !(CHATTER.test(p)&&p.split("\n").length<=3);});
+    if(!paras.length||paras.join("\n").split("\n").filter(function(x){return x.trim();}).length<2)return null;
+    noHead=true;secs=paras.map(function(p){return {tag:"Verse",dir:[],note:"",text:p.split("\n")};});
+  }
   secs=secs.map(function(s){
-    var ls=s.text.join("\n").replace(/```/g,"").trim();
+    var ls=s.text.join("\n").trim();
     if(s.dir.indexOf("repeat")>=0){var a=ls.split("\n").filter(function(x){return x.trim();});if(a.length>=4&&a.slice(-2).join("\n")===a.slice(-4,-2).join("\n"))ls=a.slice(0,-2).join("\n");}
     return {tag:s.tag,dir:s.dir,note:s.note,text:ls};});
-  if(secs.length)return {title:title,secs:secs};
-  return null;
+  /* 最後のパートの後ろに付いた説明文を外す */
+  var last=secs[secs.length-1],dropped=0;
+  if(last&&!noHead){var ps=last.text.split(/\n\s*\n/);
+    while(ps.length>1&&CHATTER.test(ps[ps.length-1])){ps.pop();dropped++;}
+    last.text=ps.join("\n\n").trim();}
+  if(noHead)notes.push("見出しが無かったので、段落ごとに「Aメロ」として入れました。下の「曲の構成」で種類を直してください");
+  if(dropped)notes.push("最後に付いていた説明文を外しました");
+  return {title:title,secs:secs,notes:notes};
 }
 function applyImport(st,res){
   var old=st.secs;
@@ -1125,7 +1192,8 @@ function doImport(res){
   var wasInst=S.inst,n=applyImport(S,res);impPending=null;$("impConfirm").hidden=true;
   syncForm();$("impText").value="";
   var kl=S.ly.kana?kanjiLeft(S):0;
-  impStat("取り込みました（"+n+"パート"+(res.title?"・曲名も":"")+"）。"+(wasInst?"インスト設定はオフにしました。":"")+(kl?"漢字が"+kl+"文字あります。":"③完成タブでコピーできます。"));
+  impStat("取り込みました（"+n+"パート"+(res.title?"・曲名も":"")+"）。"+(wasInst?"インスト設定はオフにしました。":"")+((res.notes||[]).length?res.notes.join("。")+"。":"")+
+    (kl?"歌詞に漢字が"+kl+"文字あります（カタカナ表記にしたい時は、作ったAIに「漢字をカタカナにして」と頼んでから貼り直してください）。":"③完成タブでコピーできます。"));
   toast("歌詞を取り込みました");
 }
 $("impBtn").addEventListener("click",function(){
@@ -1176,7 +1244,7 @@ $("resetRow").addEventListener("click",function(e){
 });
 
 renderGroups();syncForm();
-window.__suno={buildAllInOne:buildAllInOne,buildSunoOrder:buildSunoOrder,applyRecipe:applyRecipe,splitTag:splitTag,dirLabel:dirLabel,mk:mk,resetLyrics:resetLyrics,parseImport:parseImport,applyImport:applyImport,GROUPS:GROUPS,buildKanaPrompt:buildKanaPrompt,applyKana:applyKana,kanjiLeft:kanjiLeft,buildLyPrompt:buildLyPrompt,applyLyrics:applyLyrics,fitStyle:fitStyle,rawStyle:rawStyle,buildStyle:buildStyle,buildExclude:buildExclude,buildLyrics:buildLyrics,checks:checks,blank:blank,normalize:normalize};
+window.__suno={parseLoose:parseLoose,headName:headName,buildAllInOne:buildAllInOne,buildSunoOrder:buildSunoOrder,applyRecipe:applyRecipe,splitTag:splitTag,dirLabel:dirLabel,mk:mk,resetLyrics:resetLyrics,parseImport:parseImport,applyImport:applyImport,GROUPS:GROUPS,buildKanaPrompt:buildKanaPrompt,applyKana:applyKana,kanjiLeft:kanjiLeft,buildLyPrompt:buildLyPrompt,applyLyrics:applyLyrics,fitStyle:fitStyle,rawStyle:rawStyle,buildStyle:buildStyle,buildExclude:buildExclude,buildLyrics:buildLyrics,checks:checks,blank:blank,normalize:normalize};
 })();
 </script>
 <script>
