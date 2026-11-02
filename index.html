@@ -119,6 +119,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .chip.mini b{font-size:13px}
 .addrow{display:flex;flex-wrap:wrap;gap:6px}
 .addrow .btn{padding:8px 11px;font-size:13px}
+.allbox{display:flex;flex-direction:column;gap:8px;background:var(--bg);border:1px solid var(--accent);border-radius:12px;padding:12px}
 .sec.flash{outline:3px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -218,13 +219,20 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       <span>書いてある歌詞を新しい歌詞で上書きします。よろしいですか？</span>
       <div class="row"><button class="btn danger" id="aiYes">上書きして作る</button><button class="btn" id="aiNo">やめる</button></div>
     </div>
+    <div class="allbox">
+      <b>おすすめ：歌詞づくりから作曲までまとめて頼む</b>
+      <p class="muted" style="margin:0">Sunoをつないだ Claude に1回貼るだけで、歌詞を書く →（あなたが確認）→ Sunoで1曲作る、まで進みます。取り込みの貼り直しはいりません。</p>
+      <label class="sw"><input type="checkbox" id="allConfirm">作曲の前に歌詞を見せてもらう（クレジットのむだ使い防止）</label>
+      <div class="row"><button class="btn pri" id="allCopy">まとめて頼む指示文をコピー</button></div>
+      <span class="muted" id="allModel"></span>
+    </div>
     <div class="row">
-      <button class="btn pri" id="aiGen">歌詞を作る</button>
+      <button class="btn" id="aiGen">この画面で歌詞を作る</button>
       <button class="btn" id="aiStop" hidden>止める</button>
-      <button class="btn" id="aiCopy">指示文をコピー</button>
+      <button class="btn" id="aiCopy">歌詞だけの指示文をコピー</button>
     </div>
     <div class="aistat" id="aiStatus" role="status" aria-live="polite"></div>
-    <div class="row" style="border-top:1px solid var(--line);padding-top:10px">
+    <div class="row" id="kanaRow" style="border-top:1px solid var(--line);padding-top:10px">
       <button class="btn" id="kanaConv">今の歌詞をカタカナ表記にする</button>
       <button class="btn" id="kanaUndo" hidden>変換前に戻す</button>
     </div>
@@ -453,7 +461,7 @@ function mk(tag,text,dir,note){return {tag:tag,text:text||"",dir:(dir||[]).slice
 var SUNO_MODELS=["v6","v6-wild","v6-mini"];
 var LS_DRAFT="suno-koubou-draft-v1", LS_SAVED="suno-koubou-saved-v1";
 
-function lyBlank(){return {kana:true,theme:"",lang:"ja+",pov:"auto",tone:[],rhyme:"no",lines:"4",hookTitle:true,engHook:false,engChorus:false,noRepeat:false,varyChorus:false,catchy:false,inc:"",avoid:""};}
+function lyBlank(){return {kana:true,theme:"",lang:"ja+",pov:"auto",tone:[],rhyme:"no",lines:"4",hookTitle:true,engHook:false,confirm:true,engChorus:false,noRepeat:false,varyChorus:false,catchy:false,inc:"",avoid:""};}
 function blank(){
   var sel={};GROUPS.forEach(function(g){sel[g.id]=[];});
   return {model:"v6",sunoModel:"v6",title:"",sel:sel,custom:"",exCustom:"",ly:lyBlank(),bpm:120,bpmOn:true,key:"",inst:false,secs:TPL.std.map(function(t){return mk(t);})};
@@ -704,6 +712,7 @@ function update(){
   $("mLyrL").textContent="歌詞 "+ly.length+" / "+L.lyr+" 文字（改行・スペース込み）";
   $("mTitleL").textContent=S.title.length+" 文字";
   $("titleHint").textContent=S.title.length+" 文字";
+  $("allModel").textContent="Sunoのモデル："+(S.sunoModel||"v6")+"（③完成タブで変えられます）";
   var al=checks(S,style);
   $("alerts").innerHTML=al.length?al.map(function(x){return '<div class="alert '+x[0]+'">'+(x[0]==="b"?"要修正：":"注意：")+esc(x[1])+'</div>';}).join(""):'<div class="alert w" style="border-left-color:var(--ok)">チェックOK：ぶつかる指定や文字数オーバーはありません</div>';
   var bad=al.filter(function(x){return x[0]==="b";}).length,warn=al.length-bad;
@@ -714,7 +723,7 @@ function update(){
 function syncForm(){
   $("inst").checked=S.inst;$("bpmOn").checked=S.bpmOn;$("bpm").value=S.bpm;$("bpmV").textContent=S.bpm;
   $("bpm").disabled=!S.bpmOn;$("key").value=S.key;$("custom").value=S.custom;$("exCustom").value=S.exCustom;$("title").value=S.title;
-  $("lyTheme").value=S.ly.theme;$("lyInc").value=S.ly.inc;$("lyAvoid").value=S.ly.avoid;$("lyKana").checked=S.ly.kana;
+  $("lyTheme").value=S.ly.theme;$("lyInc").value=S.ly.inc;$("lyAvoid").value=S.ly.avoid;$("lyKana").checked=S.ly.kana;$("allConfirm").checked=S.ly.confirm;
   syncChips();syncLyOpts();if(typeof syncModel==="function")syncModel();renderSecs();update();
 }
 
@@ -883,12 +892,11 @@ var SAMPLE=null,sampleChecked=false,aiCtl=null;
 function aiStat(msg,err){var el=$("aiStatus");el.textContent=msg;el.classList.toggle("err",!!err);}
 (function(){
   try{
-    if(!window.claude||typeof window.claude.use!=="function"){sampleChecked=true;return;}
-    window.claude.use("sample").then(function(s){SAMPLE=s;sampleChecked=true;
-      if(!s)aiStat("この画面ではAI作詞が使えません。「指示文をコピー」をClaudeのチャットに貼ると同じ条件で作れます。");
-    },function(){sampleChecked=true;});
-  }catch(e){sampleChecked=true;}
+    if(!window.claude||typeof window.claude.use!=="function"){sampleChecked=true;aiAvail();return;}
+    window.claude.use("sample").then(function(s){SAMPLE=s;sampleChecked=true;aiAvail();},function(){sampleChecked=true;aiAvail();});
+  }catch(e){sampleChecked=true;aiAvail();}
 })();
+function aiAvail(){var on=!!SAMPLE;$("aiGen").hidden=!on;$("kanaRow").hidden=!on;}
 var ERR={not_granted:"AIの利用が許可されませんでした。「指示文をコピー」をClaudeのチャットに貼る方法なら作れます。",
  sampling_disabled:"このアカウントではAI作詞が使えません。「指示文をコピー」をお使いください。",
  rate_limited:"使いすぎで一時的に止まっています。少し時間をおいてもう一度押してください。",
@@ -957,6 +965,54 @@ function runAI(){
     aiStat(ERR[c]||"通信がうまくいきませんでした。もう一度押してください。",true);
   }).then(function(){$("aiGen").disabled=false;$("aiStop").hidden=true;aiCtl=null;});
 }
+
+/* ---- 歌詞づくり＋作曲まとめ ---- */
+function buildAllInOne(st){
+  var base=buildLyPrompt(st),m=SUNO_MODELS.indexOf(st.sunoModel)>=0?st.sunoModel:"v6";
+  var cond=base.split("\nルール:\n")[0].split("\n").slice(2).join("\n").trim();
+  var rules=base.split("\nルール:\n")[1].split("\n\n構成:")[0].split("\n").filter(function(l){
+    return l.indexOf("sections")<0&&l.indexOf("text には")<0&&l.indexOf("tag には")<0;}).map(function(l){
+    return l.replace(" text は空文字にする","歌詞を書かない").replace("は空文字か、1〜2行","は歌詞なしか、1〜2行");}).join("\n");
+  var sk={secs:st.secs.map(function(x){return mk(x.tag,"",x.dir,x.note);}),inst:false};
+  var skeleton=buildLyrics(sk).replace(/\n\n/g,"\n");
+  var style=buildStyle(st),ex=buildExclude(st),t=st.title.trim();
+  var o=["あなたはプロの作詞家です。下の条件で歌詞を書き、そのあとSunoのコネクタ（Suno）で曲を1回だけ作ってください。","",
+   "【ステップ1 歌詞を書く】",cond,"","ルール:",rules,
+   "- 下の【歌詞の形】の [ ] の行は1文字も変えず、順番・数もそのまま。各 [ ] の行の下に歌詞を書く",
+   "- [ ] の中に repeat があるパートは、そのパートの最後の2行をもう一度書く",
+   "- 歌詞の中に ( ) の指示や説明は書かない",
+   "","【歌詞の形】","```",skeleton,"```","",
+   "【ステップ2 確認】",
+   st.ly.confirm?"曲名と歌詞を全部見せて「この歌詞で作りますか？」と聞く。OKをもらうまでSunoでは作らない。直してと言われたら直して、もう一度見せる":"確認はいらない。歌詞ができたらそのままステップ3に進む",
+   "","【ステップ3 Sunoで作る】",
+   "1. account-usage で残りクレジットと、allowed_models に "+m+" があるか確かめる",
+   "2. audio-create をカスタムモード（description は使わない）で1回だけ呼ぶ",
+   "- title ← "+(t?"「"+t+"」":"ステップ1で考えた曲名"),
+   "- style ← 下の【スタイル】"+(style?"":"（空なので入れない）"),
+   "- negative_style ← 下の【入れたくないもの】"+(ex?"":"（なしなので入れない）"),
+   "- lyrics ← ステップ1の歌詞（[ ] の行も含めて全部）",
+   "- model ← "+m,
+   "3. どれかの項目が入れられない場合（エラーや権限不足）は、その項目を外して作らずに、止まって報告する",
+   "","【スタイル】（この文字のまま）",style||"（指定なし）",
+   "","【入れたくないもの】（この文字のまま）",ex||"なし",
+   "","【守ること】",
+   "- Sunoで作るのは1回だけ。失敗しても勝手にやり直さない",
+   "- スタイル・入れたくないものは1文字も変えない。歌詞はステップ1（確認で直した場合は直した後）のまま",
+   "- ライブラリの他の曲の編集・削除・整理はしない",
+   "- エラーが出たら、エラー文をそのまま見せて止まる",
+   "","【報告】","スマホで読むので短く日本語で。",
+   "・使ったモデル","・作る前と後の残りクレジット","・できた曲の名前と、聞けるURL（あれば）",
+   "・最後に、曲名と歌詞を、アプリに取り込める形（1行目に「曲名：〇〇」、その下に [ ] 付きの歌詞）で1つのコードブロックにまとめる"];
+  return o.join("\n");
+}
+$("allConfirm").addEventListener("change",function(){S.ly.confirm=this.checked;update();});
+$("allCopy").addEventListener("click",function(){
+  if(S.inst){aiStat("インスト（歌なし）になっています。歌詞はいらないので、③完成の「作曲の指示文をコピー」を使ってください。",true);return;}
+  if(!S.ly.theme.trim()){aiStat("テーマを書いてください。",true);$("lyTheme").focus();return;}
+  if(!S.secs.length){aiStat("構成がありません。下の「定番」などで構成を入れてください。",true);return;}
+  copyText(buildAllInOne(S),"まとめて頼む指示文");
+  aiStat("コピーしました。Sunoをつないだ Claude のチャットに貼ってください。"+(S.ly.confirm?"歌詞を見せてくれるので、よければ「OK」と返事してください。":""));
+});
 
 /* ---- Sunoで作る指示文 ---- */
 function buildSunoOrder(st){
@@ -1120,7 +1176,7 @@ $("resetRow").addEventListener("click",function(e){
 });
 
 renderGroups();syncForm();
-window.__suno={buildSunoOrder:buildSunoOrder,applyRecipe:applyRecipe,splitTag:splitTag,dirLabel:dirLabel,mk:mk,resetLyrics:resetLyrics,parseImport:parseImport,applyImport:applyImport,GROUPS:GROUPS,buildKanaPrompt:buildKanaPrompt,applyKana:applyKana,kanjiLeft:kanjiLeft,buildLyPrompt:buildLyPrompt,applyLyrics:applyLyrics,fitStyle:fitStyle,rawStyle:rawStyle,buildStyle:buildStyle,buildExclude:buildExclude,buildLyrics:buildLyrics,checks:checks,blank:blank,normalize:normalize};
+window.__suno={buildAllInOne:buildAllInOne,buildSunoOrder:buildSunoOrder,applyRecipe:applyRecipe,splitTag:splitTag,dirLabel:dirLabel,mk:mk,resetLyrics:resetLyrics,parseImport:parseImport,applyImport:applyImport,GROUPS:GROUPS,buildKanaPrompt:buildKanaPrompt,applyKana:applyKana,kanjiLeft:kanjiLeft,buildLyPrompt:buildLyPrompt,applyLyrics:applyLyrics,fitStyle:fitStyle,rawStyle:rawStyle,buildStyle:buildStyle,buildExclude:buildExclude,buildLyrics:buildLyrics,checks:checks,blank:blank,normalize:normalize};
 })();
 </script>
 <script>
