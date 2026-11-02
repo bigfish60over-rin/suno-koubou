@@ -263,6 +263,17 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <!-- ③ 完成 -->
 <section class="pane" id="p-out" hidden>
   <div class="alerts" id="alerts"></div>
+  <div class="card ai" id="orderCard">
+    <h3>Claudeに頼んでSunoで作る</h3>
+    <p class="muted" style="margin:0">曲名・スタイル・除外・歌詞をまとめた「作曲の指示文」をコピーします。Sunoのコネクタをつないだ Claude（コード君、またはチャット）に貼ると、Sunoで1曲作ってライブラリに保存します。クレジットはSunoアプリと同じように減ります。</p>
+    <div class="grp2" style="display:flex;flex-direction:column;gap:6px">
+      <span class="sub" style="font-size:13px;font-weight:700">Sunoのモデル</span>
+      <div class="chips" id="modelOpts"></div>
+      <span class="muted">3つの違いはSunoの公式説明を確認していません。迷ったら v6 のままでOKです。</span>
+    </div>
+    <div class="row"><button class="btn pri" id="orderCopy">作曲の指示文をコピー</button></div>
+    <div class="aistat" id="orderStatus" role="status" aria-live="polite"></div>
+  </div>
   <div class="card">
     <div class="row" style="justify-content:space-between"><b>曲名（Title）</b><button class="btn sm pri" data-copy="title">コピー</button></div>
     <div class="out" id="oTitle"></div>
@@ -439,18 +450,20 @@ var CHO_OPTS=[["hookTitle","曲名を入れる"],["engHook","英語の決めフ�
 var ADD_BTNS=[["Chorus","＋サビ"],["Verse","＋Aメロ"],["Pre-Chorus","＋Bメロ"],["Bridge","＋Cメロ"],["Final Chorus","＋ラストサビ"],["Post-Chorus","＋サビ後"],["Guitar Solo","＋ギターソロ"],["Instrumental","＋間奏"],["Intro","＋イントロ"],["Outro","＋アウトロ"]];
 var RECIPES=[["whisperA","Aメロは囁く"],["beltC","サビは力強く"],["fadeEnd","ラスサビ繰り返し→フェードアウト"],["buildUp","静かに始めて最後に爆発"],["keyUp","ラスサビで転調"],["cutEnd","ピタッと終わる"],["clearDir","演出を全部消す"]];
 function mk(tag,text,dir,note){return {tag:tag,text:text||"",dir:(dir||[]).slice(),note:note||""};}
+var SUNO_MODELS=["v6","v6-wild","v6-mini"];
 var LS_DRAFT="suno-koubou-draft-v1", LS_SAVED="suno-koubou-saved-v1";
 
 function lyBlank(){return {kana:true,theme:"",lang:"ja+",pov:"auto",tone:[],rhyme:"no",lines:"4",hookTitle:true,engHook:false,engChorus:false,noRepeat:false,varyChorus:false,catchy:false,inc:"",avoid:""};}
 function blank(){
   var sel={};GROUPS.forEach(function(g){sel[g.id]=[];});
-  return {model:"v6",title:"",sel:sel,custom:"",exCustom:"",ly:lyBlank(),bpm:120,bpmOn:true,key:"",inst:false,secs:TPL.std.map(function(t){return mk(t);})};
+  return {model:"v6",sunoModel:"v6",title:"",sel:sel,custom:"",exCustom:"",ly:lyBlank(),bpm:120,bpmOn:true,key:"",inst:false,secs:TPL.std.map(function(t){return mk(t);})};
 }
 function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}}
 function normalize(o){
   var b=blank();if(!o||typeof o!=="object")return b;
   ["title","custom","key","exCustom"].forEach(function(k){if(typeof o[k]==="string")b[k]=o[k];});
+  if(SUNO_MODELS.indexOf(o.sunoModel)>=0)b.sunoModel=o.sunoModel;
   if(typeof o.bpm==="number"&&o.bpm>=50&&o.bpm<=220)b.bpm=Math.round(o.bpm);
   b.bpmOn=o.bpmOn!==false;b.inst=!!o.inst;
   if(o.sel)GROUPS.forEach(function(g){var v=o.sel[g.id];if(Array.isArray(v))b.sel[g.id]=v.filter(function(x){return typeof x==="string";});});
@@ -702,7 +715,7 @@ function syncForm(){
   $("inst").checked=S.inst;$("bpmOn").checked=S.bpmOn;$("bpm").value=S.bpm;$("bpmV").textContent=S.bpm;
   $("bpm").disabled=!S.bpmOn;$("key").value=S.key;$("custom").value=S.custom;$("exCustom").value=S.exCustom;$("title").value=S.title;
   $("lyTheme").value=S.ly.theme;$("lyInc").value=S.ly.inc;$("lyAvoid").value=S.ly.avoid;$("lyKana").checked=S.ly.kana;
-  syncChips();syncLyOpts();renderSecs();update();
+  syncChips();syncLyOpts();if(typeof syncModel==="function")syncModel();renderSecs();update();
 }
 
 /* ---- 操作 ---- */
@@ -945,6 +958,44 @@ function runAI(){
   }).then(function(){$("aiGen").disabled=false;$("aiStop").hidden=true;aiCtl=null;});
 }
 
+/* ---- Sunoで作る指示文 ---- */
+function buildSunoOrder(st){
+  var style=buildStyle(st),ex=buildExclude(st),ly=buildLyrics(st),t=st.title.trim(),m=SUNO_MODELS.indexOf(st.sunoModel)>=0?st.sunoModel:"v6";
+  var o=["Sunoのコネクタ（Suno）を使って、曲を1回だけ作ってください。","",
+   "【作り方】",
+   "audio-create をカスタムモード（description は使わない）で1回だけ呼ぶ。下の値をそのまま、指定の項目に入れる。",
+   "- title ← 【曲名】"+(t?"":"（空なので入れない）"),
+   "- style ← 【スタイル】"+(style?"":"（空なので入れない）"),
+   "- negative_style ← 【入れたくないもの】"+(ex?"":"（なしなので入れない）"),
+   (st.inst?"- instrumental ← true（lyrics は入れない）":"- lyrics ← 【歌詞】"),
+   "- model ← "+m,
+   "","【最初に確認すること】",
+   "1. account-usage で残りクレジットと、使えるモデル（allowed_models）に "+m+" があるか確かめる",
+   "2. 上の項目のどれかが入れられない場合（エラーや権限不足）は、その項目を外して作らずに、止まって報告する",
+   "","【曲名】",t||"（指定なし）",
+   "","【スタイル】（この文字のまま）",style||"（指定なし）",
+   "","【入れたくないもの】（この文字のまま）",ex||"なし"];
+  if(!st.inst)o.push("","【歌詞】（この文字のまま。書き換えない）","```",ly,"```");
+  o.push("","【守ること】",
+   "- 作るのは1回だけ。失敗しても勝手にやり直さない",
+   "- 曲名・スタイル・入れたくないもの・歌詞は1文字も変えない",
+   "- ライブラリの他の曲の編集・削除・整理はしない",
+   "- エラーが出たら、エラー文をそのまま見せて止まる",
+   "","【報告】","スマホで読むので短く日本語で。",
+   "・使ったモデル","・作る前と後の残りクレジット","・できた曲の名前と、聞けるURL（あれば）");
+  return o.join("\n");
+}
+$("modelOpts").innerHTML=SUNO_MODELS.map(function(k){return '<button type="button" class="chip mini" data-model="'+k+'" aria-pressed="false"><b>'+k+'</b></button>';}).join("");
+function syncModel(){document.querySelectorAll("[data-model]").forEach(function(c){c.setAttribute("aria-pressed",c.dataset.model===S.sunoModel?"true":"false");});}
+$("modelOpts").addEventListener("click",function(e){var c=e.target.closest("[data-model]");if(!c)return;S.sunoModel=c.dataset.model;syncModel();update();});
+$("orderCopy").addEventListener("click",function(){
+  var st=$("orderStatus");
+  if(!allTags(S).length&&!S.custom.trim()&&!S.secs.some(function(x){return x.text.trim();})){st.textContent="曲調も歌詞も空です。先に①曲調か②歌詞を入れてください。";st.classList.add("err");return;}
+  var bad=checks(S,buildStyle(S)).filter(function(x){return x[0]==="b";}).length;
+  copyText(buildSunoOrder(S),"作曲の指示文");st.classList.remove("err");
+  st.textContent="コピーしました。Sunoをつないだ Claude に貼ってください。"+(bad?"（上に「要修正」が"+bad+"件あります。直してからの方が安全です）":"");
+});
+
 /* ---- 新しい曲を始める ---- */
 var newMode=null;
 function resetLyrics(st){
@@ -1069,7 +1120,7 @@ $("resetRow").addEventListener("click",function(e){
 });
 
 renderGroups();syncForm();
-window.__suno={applyRecipe:applyRecipe,splitTag:splitTag,dirLabel:dirLabel,mk:mk,resetLyrics:resetLyrics,parseImport:parseImport,applyImport:applyImport,GROUPS:GROUPS,buildKanaPrompt:buildKanaPrompt,applyKana:applyKana,kanjiLeft:kanjiLeft,buildLyPrompt:buildLyPrompt,applyLyrics:applyLyrics,fitStyle:fitStyle,rawStyle:rawStyle,buildStyle:buildStyle,buildExclude:buildExclude,buildLyrics:buildLyrics,checks:checks,blank:blank,normalize:normalize};
+window.__suno={buildSunoOrder:buildSunoOrder,applyRecipe:applyRecipe,splitTag:splitTag,dirLabel:dirLabel,mk:mk,resetLyrics:resetLyrics,parseImport:parseImport,applyImport:applyImport,GROUPS:GROUPS,buildKanaPrompt:buildKanaPrompt,applyKana:applyKana,kanjiLeft:kanjiLeft,buildLyPrompt:buildLyPrompt,applyLyrics:applyLyrics,fitStyle:fitStyle,rawStyle:rawStyle,buildStyle:buildStyle,buildExclude:buildExclude,buildLyrics:buildLyrics,checks:checks,blank:blank,normalize:normalize};
 })();
 </script>
 <script>
