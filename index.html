@@ -162,6 +162,8 @@ input[type=range]{width:100%;accent-color:var(--gold);min-height:44px}
 .selset{border:1px solid var(--line2);border-radius:14px;padding:0 14px;background:var(--surface)}
 .selset summary{cursor:pointer;min-height:44px;padding:11px 0;font-size:13.5px;color:var(--muted)}
 .selset[open]{padding-bottom:12px}
+.card .sub{font-size:13px;font-weight:700;margin:0;color:var(--ink)}
+.card .grp2{display:flex;flex-direction:column;gap:6px}
 .rule{height:1px;border:0;margin:2px 0;background:linear-gradient(90deg,transparent,var(--gold-d),transparent)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 </style>
@@ -250,6 +252,27 @@ input[type=range]{width:100%;accent-color:var(--gold);min-height:44px}
   <div class="grp">
     <h2>曲名<span class="hint" id="titleHint"></span></h2>
     <input type="text" id="title" placeholder="例: 港の朝マヅメ" autocomplete="off">
+  </div>
+  <div class="card" id="gachaCard">
+    <h3 style="margin:0">テーマガチャ</h3>
+    <p class="muted" style="margin:0">「場面」「気持ち」「季節」をそれぞれ選ぶか、「ガチャを回す」でランダムに組み合わせて、テーマの短い文を作ります。もう一度押すと選び直せます。</p>
+    <div class="grp2"><span class="sub">場面</span><div class="chips" id="gScene"></div></div>
+    <div class="grp2"><span class="sub">気持ち</span><div class="chips" id="gFeel"></div></div>
+    <div class="grp2"><span class="sub">季節</span><div class="chips" id="gSeason"></div></div>
+    <div class="row"><button class="btn pri" id="gachaBtn">ガチャを回す</button><button class="btn sm" id="gachaClear">選択を外す</button></div>
+    <div class="out empty" id="gachaOut">（場面・気持ち・季節を選ぶと、ここにテーマの文が出ます）</div>
+    <div class="row"><button class="btn" id="gachaUse">下のテーマ欄に入れる</button><button class="btn sm" id="gachaCopy">コピー</button></div>
+    <div class="confirm" id="gachaConfirm" hidden>
+      <span>テーマ欄に書いてある文を、ガチャの文で置き換えます。よろしいですか？</span>
+      <div class="row"><button class="btn danger" id="gachaYes">置き換える</button><button class="btn" id="gachaNo">やめる</button></div>
+    </div>
+  </div>
+  <div class="card" id="hookCard">
+    <h3 style="margin:0">サビの一言から構成案</h3>
+    <p class="muted" style="margin:0">サビの決めの一言を入れると、[Verse][Pre-Chorus][Chorus]…のタグ付きで「流れの例」を出します。下の「曲の構成」の順番に合わせます。歌詞の完成品ではなく、どこで何を歌うかの骨組みの例です。</p>
+    <input type="text" id="hookIn" placeholder="例: 今日も竿を振る" autocomplete="off">
+    <div class="out empty" id="hookOut">（サビの一言を入れると、ここに流れの例が出ます）</div>
+    <div class="row"><button class="btn sm" id="hookCopy">流れの例をコピー</button></div>
   </div>
   <div class="card ai" id="aiCard">
     <h3>テーマから歌詞を作る</h3>
@@ -790,6 +813,7 @@ function update(){
   $("dockWarn").textContent=bad?"要修正 "+bad:(warn?"注意 "+warn:"OK");
   $("dockWarn").style.color=bad?"var(--bad)":(warn?"var(--warn)":"var(--ok)");
   if(typeof updateSel==="function")updateSel();
+  if(typeof syncHook==="function")syncHook();
   lsSet(LS_DRAFT,JSON.stringify(S));
 }
 function syncForm(){
@@ -1362,6 +1386,64 @@ $("favList").addEventListener("click",function(e){
   else if(b.dataset.fdel!==undefined){var nm=(a[+b.dataset.fdel]||{}).name;a.splice(+b.dataset.fdel,1);lsSet(LS_FAV,JSON.stringify(a));favDel=-1;renderFavs();toast("「"+nm+"」を削除しました");}
 });
 renderFavs();
+
+/* ---- v8: テーマガチャ ---- */
+var G_SCENE=[["港","港","港で"],["夜明けの海","夜明けの海","夜明けの海を前に"],["釣り","釣りの一日","竿を出しながら"],["職場","職場","職場で"],["ガレージ","ガレージ","ガレージで"],
+ ["バンド練習","バンド練習","バンド練習のスタジオで"],["家族","家族の時間","家族と過ごす時間に"],["帰り道","帰り道","帰り道で"],["雨の街","雨の街","雨の街で"],["深夜のドライブ","深夜のドライブ","深夜のドライブで"],["旅先","旅先","旅先で"],["祭りの夜","祭りの夜","祭りの夜に"]];
+var G_FEEL=[["希望","明日への希望を見つける"],["切なさ","切なさを抱きしめる"],["感謝","ありがとうを伝えたくなる"],["悔しさ","悔しさをバネにする"],["懐かしさ","昔を懐かしく思い出す"],["高揚","胸が高鳴る"],
+ ["安らぎ","ほっと心がほどける"],["決意","もう一度やると決める"],["寂しさ","ひとりの寂しさをかみしめる"],["笑い","くだらないことで笑い合う"],["友情","仲間との絆を確かめる"]];
+var G_SEASON=[["春"],["夏"],["秋"],["冬"],["季節なし"]];
+var GACHA={scene:-1,feel:-1,season:-1};
+function gachaText(g){
+  var sc=g.scene>=0?G_SCENE[g.scene]:null,fe=g.feel>=0?G_FEEL[g.feel]:null,se=g.season>=0&&G_SEASON[g.season][0]!=="季節なし"?G_SEASON[g.season][0]:"";
+  if(!sc&&!fe&&!se)return "";
+  if(!fe)return (se?se+"の":"")+(sc?sc[1]:"季節の風景")+"を描く歌。";
+  return (se?se+"、":"")+(sc?sc[2]+"、":"")+fe[1]+"歌。";
+}
+function chipRow(id,list,key){$(id).innerHTML=list.map(function(x,i){return '<button type="button" class="chip" data-gk="'+key+'" data-gi="'+i+'" aria-pressed="false"><b>'+esc(x[0])+'</b></button>';}).join("");}
+chipRow("gScene",G_SCENE,"scene");chipRow("gFeel",G_FEEL,"feel");chipRow("gSeason",G_SEASON,"season");
+function syncGacha(){
+  document.querySelectorAll("[data-gk]").forEach(function(c){c.setAttribute("aria-pressed",GACHA[c.dataset.gk]===+c.dataset.gi?"true":"false");});
+  var t=gachaText(GACHA);$("gachaOut").textContent=t||"（場面・気持ち・季節を選ぶと、ここにテーマの文が出ます）";$("gachaOut").classList.toggle("empty",!t);
+}
+$("gachaCard").addEventListener("click",function(e){var c=e.target.closest("[data-gk]");if(!c)return;var k=c.dataset.gk,i=+c.dataset.gi;GACHA[k]=GACHA[k]===i?-1:i;$("gachaConfirm").hidden=true;syncGacha();});
+function rnd(n,not){if(n<2)return 0;var r;do{r=Math.floor(Math.random()*n);}while(r===not);return r;}
+$("gachaBtn").addEventListener("click",function(){GACHA={scene:rnd(G_SCENE.length,GACHA.scene),feel:rnd(G_FEEL.length,GACHA.feel),season:rnd(G_SEASON.length,GACHA.season)};$("gachaConfirm").hidden=true;syncGacha();});
+$("gachaClear").addEventListener("click",function(){GACHA={scene:-1,feel:-1,season:-1};$("gachaConfirm").hidden=true;syncGacha();});
+function gachaPut(){var t=gachaText(GACHA);S.ly.theme=t;$("lyTheme").value=t;$("gachaConfirm").hidden=true;update();toast("テーマ欄に入れました");}
+$("gachaUse").addEventListener("click",function(){
+  if(!gachaText(GACHA)){toast("先に場面・気持ち・季節を選ぶか、ガチャを回してください");return;}
+  if(S.ly.theme.trim()&&S.ly.theme.trim()!==gachaText(GACHA)){$("gachaConfirm").hidden=false;return;}
+  gachaPut();
+});
+$("gachaYes").addEventListener("click",gachaPut);
+$("gachaNo").addEventListener("click",function(){$("gachaConfirm").hidden=true;});
+$("gachaCopy").addEventListener("click",function(){copyText(gachaText(GACHA),"テーマの文");});
+syncGacha();
+
+/* ---- v8: サビの一言から構成案（骨組みの例） ---- */
+var HOOK_GUIDE={
+ "Intro":function(){return "（楽器だけ、または情景を1行）";},
+ "Verse":function(h,n){return n===1?"（1番：場面の説明。どこで・いつ・誰と）\n（「"+h+"」と言いたくなる、きっかけの出来事）":n===2?"（2番：時間を進める。1番とは別の角度から）\n（同じ場面の別の日・別の人でもよい）":"（"+n+"番：ここまでの話をまとめて、答えに近づく）";},
+ "Pre-Chorus":function(){return "（気持ちが動き出す。サビへの助走を2行ほど）";},
+ "Chorus":function(h,n){return h+"\n"+(n===1?"（「"+h+"」の理由や気持ちを1〜2行）":"（1回目と同じ形のまま、1〜2行だけ変えて話を進める）")+"\n"+h;},
+ "Post-Chorus":function(h){return "（「"+h+"」の言葉を短く繰り返す・掛け声）";},
+ "Bridge":function(){return "（一度引いて、本音や転機を1〜2行。サビの言葉は使わない）";},
+ "Final Chorus":function(h){return h+"\n（いちばん言いたいことで締める。言葉を少し変えてもよい）\n"+h;},
+ "Outro":function(h){return "（「"+h+"」の余韻を1行、または楽器だけで終わる）";},
+ "End":function(){return "";}
+};
+function buildHookFlow(hook,secs){
+  hook=String(hook||"").trim();if(!hook)return "";
+  var tags=(secs&&secs.length?secs.map(function(s){return s.tag;}):TPL.std).slice();
+  if(tags.indexOf("Chorus")<0&&tags.indexOf("Final Chorus")<0)tags=TPL.std.slice();
+  var cnt={},out=[];
+  tags.forEach(function(t){cnt[t]=(cnt[t]||0)+1;var g=HOOK_GUIDE[t],body=NO_LYR.indexOf(t)>=0?"（楽器だけ。歌詞なし）":(g?g(hook,cnt[t]):"（自由に）");out.push("["+t+"]"+(body?"\n"+body:""));});
+  return out.join("\n\n");
+}
+function syncHook(){var t=buildHookFlow($("hookIn").value,S.secs);$("hookOut").textContent=t||"（サビの一言を入れると、ここに流れの例が出ます）";$("hookOut").classList.toggle("empty",!t);}
+$("hookIn").addEventListener("input",syncHook);
+$("hookCopy").addEventListener("click",function(){var t=buildHookFlow($("hookIn").value,S.secs);if(!t){toast("先にサビの一言を入れてください");$("hookIn").focus();return;}copyText(t,"流れの例");});
 
 renderGroups();syncForm();
 try{if(navigator.serviceWorker){var rl=function(){$("readyLine").textContent="READY · OFFLINE CACHE ACTIVE";};if(navigator.serviceWorker.controller)rl();else navigator.serviceWorker.ready.then(rl,function(){});}}catch(e){}
