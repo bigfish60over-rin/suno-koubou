@@ -372,6 +372,12 @@ input[type=range]{width:100%;accent-color:var(--gold);min-height:44px}
     <div class="row"><button class="btn pri" id="orderCopy">作曲の指示文をコピー</button></div>
     <div class="aistat" id="orderStatus" role="status" aria-live="polite"></div>
   </div>
+  <div class="card" id="claudeCard">
+    <h3 style="margin:0;font-size:17px">Claudeに渡す用</h3>
+    <p class="muted" style="margin:0">スタイル・入れたくないもの・歌詞を、下の形で1つにまとめてコピーします。SUNOコネクタをつないだ Claude に貼ってください。</p>
+    <div class="out" id="oClaude"></div>
+    <button class="btn pri" id="claudeCopy">Claudeに渡す用をコピー</button>
+  </div>
   <div class="card">
     <div class="row" style="justify-content:space-between"><b>曲名（Title）</b><button class="btn sm pri" data-copy="title">コピー</button></div>
     <div class="out" id="oTitle"></div>
@@ -907,6 +913,7 @@ function update(){
   $("oStyle").textContent=style||"（まだ何も選ばれていません）";$("oStyle").classList.toggle("empty",!style);
   $("oEx").textContent=exs||"（なし。空のままでOK）";$("oEx").classList.toggle("empty",!exs);
   $("oLyr").textContent=ly||"（構成がありません）";$("oLyr").classList.toggle("empty",!ly);
+  $("oClaude").textContent=buildForClaude(S);
   setMeter($("mStyle"),style.length,L.style);setMeter($("mStyle2"),style.length,L.style);setMeter($("mLyr"),ly.length,L.lyr);
   var sl="スタイル "+style.length+" / "+L.style+" 文字（スペース込み）";
   $("mStyleL").textContent=sl;$("mStyleL2").textContent=sl;
@@ -1257,6 +1264,16 @@ $("orderCopy").addEventListener("click",function(){
   copyText(buildSunoOrder(S),"作曲の指示文");st.classList.remove("err");
   st.textContent="コピーしました。Sunoをつないだ Claude に貼ってください。"+(bad?"（上に「要修正」が"+bad+"件あります。直してからの方が安全です）":"");
 });
+
+/* ---- v8: Claudeに渡す用 ---- */
+function buildForClaude(st){
+  var style=buildStyle(st),ex=buildExclude(st),ly=buildLyrics(st);
+  return ["SUNOコネクタで次の内容の曲を作ってください。",
+   "スタイル："+(style||"なし"),
+   "入れたくないもの："+(ex||"なし"),
+   "歌詞："+(ly?(ly.indexOf("\n")>=0?"\n"+ly:ly):"なし")].join("\n");
+}
+$("claudeCopy").addEventListener("click",function(){copyText(buildForClaude(S),"Claudeに渡す用");});
 
 /* ---- 新しい曲を始める ---- */
 var newMode=null;
