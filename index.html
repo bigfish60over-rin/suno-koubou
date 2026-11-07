@@ -404,6 +404,46 @@ input[type=range]{width:100%;accent-color:var(--gold);min-height:44px}
     <div class="row" id="resetRow"><button class="btn danger" id="resetBtn">全部リセット</button></div>
   </div>
 </section>
+
+<!-- ⑤ リミックス・延長 -->
+<section class="pane" id="p-remix" hidden>
+  <h2 class="pane-title">リミックス・延長</h2>
+  <p class="muted" style="margin:0">できた曲の続きを作る・長い曲を最初から作る・原曲寄りで作り直すための文をまとめます。Sunoでの操作は⑥ガイドを見てください。</p>
+  <div class="card" id="extCard">
+    <h3 style="margin:0">延長（Extend）用</h3>
+    <p class="muted" style="margin:0">「続きに入れたい歌詞」と「続きのスタイル」を作って、それぞれコピーします。</p>
+    <div class="grp2">
+      <span class="sub">続きに入れたい歌詞</span>
+      <div class="addrow" id="extTags"></div>
+      <textarea id="extLyr" placeholder="例:&#10;[Verse]&#10;帰り道の堤防で&#10;まだ竿をしまえない"></textarea>
+      <div class="row"><button class="btn sm" id="extCho">②の最後のサビを足す</button><button class="btn sm danger" id="extLyrClr">歌詞を消す</button></div>
+      <div class="mlabel"><span id="extLyrL">0 文字</span></div>
+      <button class="btn pri" id="extLyrCopy">続きの歌詞をコピー</button>
+    </div>
+    <hr class="rule">
+    <div class="grp2">
+      <span class="sub">続きのスタイル</span>
+      <div class="row"><button class="btn sm" id="extStyleCur">今の曲調（③のスタイル）を入れる</button></div>
+      <span class="muted">続きの雰囲気を変えたい時は、下の言葉を足せます（押すと後ろに付きます／もう一度押すと外れます）</span>
+      <div class="chips" id="extMods"></div>
+      <textarea id="extStyle" placeholder="例: j-rock, energetic, distorted guitar"></textarea>
+      <div class="mlabel"><span id="extStyleL">0 / 1000 文字</span></div>
+      <button class="btn pri" id="extStyleCopy">続きのスタイルをコピー</button>
+    </div>
+  </div>
+  <div class="card" id="longCard">
+    <h3 style="margin:0">長い曲を最初から作る</h3>
+    <p class="muted" style="margin:0">②歌詞の「曲の構成」を長め（Aメロ・サビを増やし、間奏とアウトロ入り）に入れ替えます。書いた歌詞は同じパートに引き継ぎます。</p>
+    <div class="out" id="longPrev"></div>
+    <button class="btn pri" data-tpl="long">長い曲の構成にする</button>
+  </div>
+  <div class="card" id="covCard">
+    <h3 style="margin:0">原曲寄りで作り直す（Cover）用</h3>
+    <div class="alert w" id="covNote">伴奏を完全に原曲どおり残す機能があるかは確認できていません</div>
+    <div class="grp2"><span class="sub">目的を選ぶ</span><div class="chips" id="covGoals"></div></div>
+    <div id="covBody" style="display:flex;flex-direction:column;gap:10px"></div>
+  </div>
+</section>
 </div>
 
 <div class="dock"><div class="wrap">
@@ -420,6 +460,7 @@ input[type=range]{width:100%;accent-color:var(--gold);min-height:44px}
     <button class="tab" role="tab" id="t-lyr" aria-selected="false" data-p="lyr"><span class="ti">②</span>歌詞</button>
     <button class="tab" role="tab" id="t-out" aria-selected="false" data-p="out"><span class="ti">③</span>完成</button>
     <button class="tab" role="tab" id="t-save" aria-selected="false" data-p="save"><span class="ti">④</span>保存</button>
+    <button class="tab" role="tab" id="t-remix" aria-selected="false" data-p="remix"><span class="ti">⑤</span>リミックス</button>
   </div>
 </nav>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -504,7 +545,8 @@ var KEYS=["","C major","C minor","C# minor","D major","D minor","E major","E min
 var TPL={
  std:["Intro","Verse","Pre-Chorus","Chorus","Verse","Pre-Chorus","Chorus","Bridge","Final Chorus","Outro"],
  short:["Intro","Verse","Chorus","Verse","Chorus","Outro"],
- solo:["Intro","Verse","Pre-Chorus","Chorus","Verse","Chorus","Guitar Solo","Final Chorus","Outro"]
+ solo:["Intro","Verse","Pre-Chorus","Chorus","Verse","Chorus","Guitar Solo","Final Chorus","Outro"],
+ long:["Intro","Verse","Pre-Chorus","Chorus","Verse","Pre-Chorus","Chorus","Instrumental","Verse","Pre-Chorus","Chorus","Bridge","Final Chorus","Outro"]
 };
 var PRESETS=[
  {n:"疾走J-ROCK",s:{genre:["j-rock"],era:["2000s"],mood:["energetic","uplifting"],inst:["distorted guitar","bass guitar","drums"],vocal:["male vocals","powerful vocals","japanese lyrics"],prod:["punchy drums"],excl:["autotune"]},bpm:170,key:"E minor"},
@@ -814,6 +856,7 @@ function update(){
   $("dockWarn").style.color=bad?"var(--bad)":(warn?"var(--warn)":"var(--ok)");
   if(typeof updateSel==="function")updateSel();
   if(typeof syncHook==="function")syncHook();
+  if(typeof renderRemix==="function"&&RX&&!$("p-remix").hidden)renderRemix();
   lsSet(LS_DRAFT,JSON.stringify(S));
 }
 function syncForm(){
@@ -837,8 +880,9 @@ function copyText(txt,label){
 }
 function showTab(p){
   document.querySelectorAll(".tab").forEach(function(t){t.setAttribute("aria-selected",t.dataset.p===p?"true":"false");});
-  ["style","lyr","out","save"].forEach(function(k){$("p-"+k).hidden=k!==p;});
+  document.querySelectorAll(".tab").forEach(function(t){var k=t.dataset.p;$("p-"+k).hidden=k!==p;});
   if(p==="save")renderSaved();
+  if(p==="remix"&&typeof renderRemix==="function")renderRemix();
   try{window.scrollTo(0,0);}catch(e){}
 }
 document.querySelectorAll(".tab").forEach(function(t){t.addEventListener("click",function(){showTab(t.dataset.p);});});
@@ -1444,6 +1488,74 @@ function buildHookFlow(hook,secs){
 function syncHook(){var t=buildHookFlow($("hookIn").value,S.secs);$("hookOut").textContent=t||"（サビの一言を入れると、ここに流れの例が出ます）";$("hookOut").classList.toggle("empty",!t);}
 $("hookIn").addEventListener("input",syncHook);
 $("hookCopy").addEventListener("click",function(){var t=buildHookFlow($("hookIn").value,S.secs);if(!t){toast("先にサビの一言を入れてください");$("hookIn").focus();return;}copyText(t,"流れの例");});
+
+/* ---- v8: リミックス・延長 ---- */
+var EXT_TAGS=["Verse","Pre-Chorus","Chorus","Bridge","Guitar Solo","Final Chorus","Outro","End"];
+var EXT_MODS=[["盛り上げる","building intensity"],["静かに","quiet, stripped back"],["ギターソロ","guitar solo"],["壮大に","epic"],["フェードアウト","fade out"],["ライブ感","live recording"]];
+var COV_GOALS=[["long","長くしたい"],["mood","雰囲気を変えたい"],["part","一部だけ直したい"]];
+function getRemix(){var r={extLyr:"",extStyle:"",goal:"",part:0};try{var o=JSON.parse(lsGet(LS_REMIX));if(o&&typeof o==="object"){["extLyr","extStyle","goal"].forEach(function(k){if(typeof o[k]==="string")r[k]=o[k];});if(typeof o.part==="number")r.part=o.part;}}catch(e){}return r;}
+var RX=getRemix();
+function saveRemix(){lsSet(LS_REMIX,JSON.stringify(RX));}
+$("extTags").innerHTML=EXT_TAGS.map(function(t){return '<button class="btn sm" data-et="'+t+'">['+t+']</button>';}).join("");
+$("extMods").innerHTML=EXT_MODS.map(function(m){return '<button type="button" class="chip" data-em="'+esc(m[1])+'" aria-pressed="false"><b>'+esc(m[0])+'</b><i>'+esc(m[1])+'</i></button>';}).join("");
+$("covGoals").innerHTML=COV_GOALS.map(function(g){return '<button type="button" class="chip" data-cg="'+g[0]+'" aria-pressed="false"><b>'+esc(g[1])+'</b></button>';}).join("");
+function styleTokens(s){return String(s||"").split(/\s*,\s*/).map(function(x){return x.trim();}).filter(Boolean);}
+function syncExt(){
+  $("extLyr").value=RX.extLyr;$("extStyle").value=RX.extStyle;
+  $("extLyrL").textContent=RX.extLyr.trim().length+" 文字";
+  var n=RX.extStyle.trim().length;$("extStyleL").textContent=n+" / "+LIM.v6.style+" 文字"+(n>LIM.v6.style?"（上限を超えています）":"");$("extStyleL").style.color=n>LIM.v6.style?"var(--bad)":"";
+  var low=styleTokens(RX.extStyle).join(", ").toLowerCase();
+  document.querySelectorAll("[data-em]").forEach(function(c){c.setAttribute("aria-pressed",(", "+low+", ").indexOf(", "+c.dataset.em.toLowerCase()+", ")>=0?"true":"false");});
+}
+$("extTags").addEventListener("click",function(e){var b=e.target.closest("[data-et]");if(!b)return;var v=RX.extLyr.replace(/\s+$/,"");RX.extLyr=(v?v+"\n\n":"")+"["+b.dataset.et+"]\n";saveRemix();syncExt();var ta=$("extLyr");ta.focus();try{ta.setSelectionRange(ta.value.length,ta.value.length);}catch(x){}});
+$("extLyr").addEventListener("input",function(){RX.extLyr=this.value;saveRemix();syncExt();if(RX.goal==="long")renderCov();});
+$("extStyle").addEventListener("input",function(){RX.extStyle=this.value;saveRemix();syncExt();if(RX.goal==="long")renderCov();});
+$("extCho").addEventListener("click",function(){
+  for(var j=S.secs.length-1;j>=0;j--){var s=S.secs[j];if((s.tag==="Chorus"||s.tag==="Final Chorus")&&s.text.trim()){var v=RX.extLyr.replace(/\s+$/,"");RX.extLyr=(v?v+"\n\n":"")+"["+s.tag+"]\n"+s.text.trim()+"\n";saveRemix();syncExt();toast("②の最後のサビを足しました");return;}}
+  toast("②の歌詞にサビ（歌詞入り）がありません");
+});
+$("extLyrClr").addEventListener("click",function(){if(!RX.extLyr.trim())return;RX.extLyr="";saveRemix();syncExt();toast("続きの歌詞を消しました");});
+$("extStyleCur").addEventListener("click",function(){var st=buildStyle(S);if(!st){toast("①曲調がまだ空です");return;}RX.extStyle=st;saveRemix();syncExt();toast("今の曲調を入れました");});
+$("extMods").addEventListener("click",function(e){var c=e.target.closest("[data-em]");if(!c)return;var v=c.dataset.em,a=styleTokens(RX.extStyle),parts=styleTokens(v),lowA=a.map(function(x){return x.toLowerCase();});
+  var on=parts.every(function(p){return lowA.indexOf(p.toLowerCase())>=0;});
+  if(on)a=a.filter(function(x){return parts.map(function(p){return p.toLowerCase();}).indexOf(x.toLowerCase())<0;});else parts.forEach(function(p){if(lowA.indexOf(p.toLowerCase())<0)a.push(p);});
+  RX.extStyle=a.join(", ");saveRemix();syncExt();});
+$("extLyrCopy").addEventListener("click",function(){copyText(RX.extLyr.trim(),"続きの歌詞");});
+$("extStyleCopy").addEventListener("click",function(){copyText(RX.extStyle.trim(),"続きのスタイル");});
+function pasteBox(label,text,key,empty){return '<div class="grp2"><div class="row" style="justify-content:space-between"><span class="sub">'+esc(label)+'</span><button class="btn sm pri" data-cvc="'+key+'">コピー</button></div><div class="out'+(text?"":" empty")+'">'+esc(text||empty)+'</div></div>';}
+var COV_TEXT={};
+function renderCov(){
+  document.querySelectorAll("[data-cg]").forEach(function(c){c.setAttribute("aria-pressed",c.dataset.cg===RX.goal?"true":"false");});
+  var h="",T={};
+  if(RX.goal==="long"){
+    T.lyr=RX.extLyr.trim();T.style=RX.extStyle.trim();
+    h='<div class="alert w" style="border-left-color:var(--gold)">使うSunoの機能：<b>Extend（延長）</b><br>場所：曲の「…」メニュー → Remix/Edit → Extend</div>'+
+      pasteBox("貼り付け用：続きの歌詞",T.lyr,"lyr","（まだありません。上の「延長（Extend）用」で作ってください）")+
+      pasteBox("貼り付け用：続きのスタイル",T.style,"style","（まだありません。上の「延長（Extend）用」で作ってください）");
+  }else if(RX.goal==="mood"){
+    T.style=buildStyle(S);
+    h='<div class="alert w" style="border-left-color:var(--gold)">使うSunoの機能：<b>Cover</b>（メロディを保ったままスタイルを変える機能）<br>場所：曲の「…」メニュー → Remix/Edit → Cover</div>'+
+      '<p class="muted" style="margin:0">新しい雰囲気は①曲調で選んでください。今の①曲調のスタイルが下に出ます。</p>'+
+      pasteBox("貼り付け用：新しいスタイル",T.style,"style","（①曲調がまだ空です）");
+  }else if(RX.goal==="part"){
+    var cnt={},opts=S.secs.map(function(s,i){cnt[s.tag]=(cnt[s.tag]||0)+1;return '<option value="'+i+'"'+(i===RX.part?" selected":"")+'>'+(i+1)+". "+esc((SEC_JP[s.tag]||s.tag)+(cnt[s.tag]>1?"（"+cnt[s.tag]+"回目）":""))+" ["+esc(s.tag)+"]</option>";}).join("");
+    var s0=S.secs[RX.part]||S.secs[0];
+    T.part=s0?("["+s0.tag+(dirLabel(s0)?": "+dirLabel(s0):"")+"]"+(s0.text.trim()&&!S.inst?"\n"+s0.text.trim():"")):"";
+    h='<div class="alert w" style="border-left-color:var(--gold)">使うSunoの機能：<b>Replace Section</b>（部分の差し替え）<br>場所：曲の「…」メニュー → Remix/Edit → Replace Section（その先の操作は未確認）</div>'+
+      (S.secs.length?'<label class="sub" for="covPart">直したいパート（②歌詞の「曲の構成」から選びます。先に②で歌詞を直してください）</label><select id="covPart">'+opts+'</select>':'')+
+      pasteBox("貼り付け用：直したいパートの歌詞",T.part,"part","（②歌詞にパートがありません）");
+  }else h='<p class="muted" style="margin:0">上で目的を選ぶと、使うSunoの機能名と、貼り付け用の文が出ます。</p>';
+  COV_TEXT=T;$("covBody").innerHTML=h;
+}
+$("covGoals").addEventListener("click",function(e){var c=e.target.closest("[data-cg]");if(!c)return;RX.goal=RX.goal===c.dataset.cg?"":c.dataset.cg;saveRemix();renderCov();});
+$("covBody").addEventListener("change",function(e){if(e.target.id==="covPart"){RX.part=+e.target.value;saveRemix();renderCov();}});
+$("covBody").addEventListener("click",function(e){var b=e.target.closest("[data-cvc]");if(!b)return;var k=b.dataset.cvc;copyText(COV_TEXT[k]||"",k==="lyr"?"続きの歌詞":k==="part"?"直したいパートの歌詞":"スタイル");});
+function renderRemix(){
+  if(RX.part>=S.secs.length)RX.part=0;
+  $("longPrev").textContent=TPL.long.map(function(t){return SEC_JP[t]||t;}).join(" → ");
+  syncExt();renderCov();
+}
+renderRemix();
 
 renderGroups();syncForm();
 try{if(navigator.serviceWorker){var rl=function(){$("readyLine").textContent="READY · OFFLINE CACHE ACTIVE";};if(navigator.serviceWorker.controller)rl();else navigator.serviceWorker.ready.then(rl,function(){});}}catch(e){}
