@@ -164,6 +164,14 @@ input[type=range]{width:100%;accent-color:var(--gold);min-height:44px}
 .selset[open]{padding-bottom:12px}
 .card .sub{font-size:13px;font-weight:700;margin:0;color:var(--ink)}
 .card .grp2{display:flex;flex-direction:column;gap:6px}
+.guide h3{margin:0;font-size:17px;padding-bottom:8px;background:linear-gradient(90deg,var(--gold-d),transparent) left bottom/100% 1px no-repeat}
+.guide dl{margin:0;display:flex;flex-direction:column;gap:4px}
+.guide dt{font-family:var(--f-disp);font-size:12.5px;font-weight:700;letter-spacing:.1em;color:var(--gold);margin-top:6px}
+.guide dt:first-child{margin-top:0}
+.guide dd{margin:0;font-size:14px;line-height:1.7;overflow-wrap:anywhere}
+.guide .gtxt{margin:0;font-size:14px;line-height:1.7}
+.guide .gwarn{margin:0;font-size:13px;color:var(--warn);border-left:3px solid var(--warn);padding-left:10px}
+.guide .gsrc{margin:0;font-size:11.5px;color:var(--muted);font-family:var(--f-body);border-top:1px solid var(--line2);padding-top:8px;line-height:1.6}
 .rule{height:1px;border:0;margin:2px 0;background:linear-gradient(90deg,transparent,var(--gold-d),transparent)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 </style>
@@ -444,6 +452,63 @@ input[type=range]{width:100%;accent-color:var(--gold);min-height:44px}
     <div id="covBody" style="display:flex;flex-direction:column;gap:10px"></div>
   </div>
 </section>
+
+<!-- ⑥ 徹底ガイド -->
+<section class="pane" id="p-guide" hidden>
+  <h2 class="pane-title">徹底ガイド</h2>
+  <p class="muted" style="margin:0">Sunoでの操作のまとめです。下の出典の情報だけを書いています。出典にないことは「未確認」としています（Sunoの公式の説明ではありません）。</p>
+  <div class="card guide">
+    <h3>Remix/Edit メニューの中身</h3>
+    <p class="gtxt">曲の「…」メニュー内の Remix/Edit に、Cover・Extend・速度変更・Use Styles and Lyrics・Crop・Replace Section がまとめられています。</p>
+    <p class="gsrc">確認日：2026-11-07<br>出典：Jack Righteous（Sunoの解説サイト・非公式）</p>
+  </div>
+  <div class="card guide">
+    <h3>作る</h3>
+    <dl>
+      <dt>できること</dt><dd>v6 / v6-wild / v6-mini は1回で最大8分まで作れます。</dd>
+      <dt>手順</dt><dd>未確認</dd>
+      <dt>工房での入れ方</dt><dd>①曲調 → ②歌詞 → ③完成の順に作ってコピーし、貼ります。長い曲にしたい時は、⑤の「長い曲の構成にする」を使います。</dd>
+    </dl>
+    <p class="gsrc">確認日：2026-11-07<br>出典：Jack Righteous（Sunoの解説サイト・非公式）</p>
+  </div>
+  <div class="card guide">
+    <h3>延長（Extend）</h3>
+    <dl>
+      <dt>できること</dt><dd>できた曲の続きを作ります（曲の「…」メニュー → Remix/Edit の中にあります）。</dd>
+      <dt>手順</dt><dd>… → Remix/Edit → Extend → 元の曲をどこまで残すか選ぶ → 歌詞やスタイルを追加 → Create → 良い続きを選ぶ → Get Whole Song</dd>
+      <dt>工房での入れ方</dt><dd>⑤の「延長（Extend）用」で続きの歌詞とスタイルを作ってコピーし、手順の「歌詞やスタイルを追加」で貼ります。</dd>
+    </dl>
+    <p class="gsrc">確認日：2026-11-07<br>出典：Jack Righteous（Sunoの解説サイト・非公式）</p>
+  </div>
+  <div class="card guide">
+    <h3>カバー（Cover）</h3>
+    <dl>
+      <dt>できること</dt><dd>メロディを保ったまま、スタイルを変えます。</dd>
+      <dt>手順</dt><dd>… → Remix/Edit → Cover（その先の手順は未確認）</dd>
+      <dt>工房での入れ方</dt><dd>①曲調で新しい雰囲気を選び、⑤の「雰囲気を変えたい」でスタイルをコピーして貼ります。</dd>
+    </dl>
+    <p class="gwarn">伴奏を完全に原曲どおり残す機能があるかは確認できていません。</p>
+    <p class="gsrc">確認日：2026-11-07<br>出典：Jack Righteous（Sunoの解説サイト・非公式）</p>
+  </div>
+  <div class="card guide">
+    <h3>部分修正</h3>
+    <dl>
+      <dt>できること</dt><dd>Remix/Edit の中に Crop と Replace Section があります。それぞれで何ができるかの詳しい説明は未確認です。</dd>
+      <dt>手順</dt><dd>… → Remix/Edit → Crop または Replace Section（その先の手順は未確認）</dd>
+      <dt>工房での入れ方</dt><dd>②で直したいパートの歌詞を直し、⑤の「一部だけ直したい」でそのパートをコピーします。</dd>
+    </dl>
+    <p class="gsrc">確認日：2026-11-07<br>出典：Jack Righteous（Sunoの解説サイト・非公式）</p>
+  </div>
+  <div class="card guide">
+    <h3>ダウンロード・権利</h3>
+    <dl>
+      <dt>できること</dt><dd>権利：リミックス系の商用利用は、古いヘルプと新しい規約で食い違いがあったと指摘されています。</dd>
+      <dt>手順</dt><dd>ダウンロード：未確認。<br>収益化する前に、Suno公式の最新の規約を確認してください。</dd>
+      <dt>工房での入れ方</dt><dd>工房にはダウンロードや権利の機能はありません。</dd>
+    </dl>
+    <p class="gsrc">確認日：2026-11-07<br>出典：Jack Righteous（Sunoの解説サイト・非公式）</p>
+  </div>
+</section>
 </div>
 
 <div class="dock"><div class="wrap">
@@ -461,6 +526,7 @@ input[type=range]{width:100%;accent-color:var(--gold);min-height:44px}
     <button class="tab" role="tab" id="t-out" aria-selected="false" data-p="out"><span class="ti">③</span>完成</button>
     <button class="tab" role="tab" id="t-save" aria-selected="false" data-p="save"><span class="ti">④</span>保存</button>
     <button class="tab" role="tab" id="t-remix" aria-selected="false" data-p="remix"><span class="ti">⑤</span>リミックス</button>
+    <button class="tab" role="tab" id="t-guide" aria-selected="false" data-p="guide"><span class="ti">⑥</span>ガイド</button>
   </div>
 </nav>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
