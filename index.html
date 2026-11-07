@@ -189,17 +189,17 @@ input[type=range]{width:100%;accent-color:var(--gold);min-height:44px}
 <!-- ① 曲調 -->
 <section class="pane" id="p-style">
   <div class="selbar" id="selBar" role="status" aria-live="polite">
-    <div class="selrow"><span class="selnum">今 <b id="selN">0</b> 個選択中</span><span class="sellim" id="selLimL">目安 8 個まで</span></div>
+    <div class="selrow"><span class="selnum">スタイルのタグ 今 <b id="selN">0</b> 個</span><span class="sellim" id="selLimL">目安 12 個まで</span></div>
     <div class="meter" id="mSel"><span></span></div>
     <p class="selwarn" id="selWarn" hidden></p>
   </div>
   <details class="selset" id="selSet">
-    <summary>目安の数を変える（いま <span id="selLimS">8</span> 個）</summary>
+    <summary>目安の数を変える（いま <span id="selLimS">12</span> 個）</summary>
     <div class="row" style="justify-content:space-between;margin-top:10px">
       <div class="row"><button class="btn sm" id="selMinus" aria-label="目安を1つ減らす">−1</button><span class="bpmv" id="selLimV">8</span><button class="btn sm" id="selPlus" aria-label="目安を1つ増やす">＋1</button></div>
-      <button class="btn sm" id="selDef">8に戻す</button>
+      <button class="btn sm" id="selDef">12に戻す</button>
     </div>
-    <p class="muted" style="margin:8px 0 0">初期値は8個です。Sunoの公式の数字ではなく、この工房での目安です（数えるのは①曲調で選んだ項目。入れたくないもの・BPM・キー・自由追加は数えません）。</p>
+    <p class="muted" style="margin:8px 0 0">初期値は12個です。Sunoの公式の数字ではなく、この工房での目安です。数え方は③完成の「タグが◯個あります」と同じで、スタイル欄に入る言葉の数です（BPM・キー・自由追加も1つずつ数えます。入れたくないものは数えません）。ここで目安を変えると、③完成の注意も同じ数になります。</p>
   </details>
   <div class="grp">
     <h2>お手本から始める<span class="hint">押すと全部入れ替わります</span></h2>
@@ -666,7 +666,7 @@ var SUNO_MODELS=["v6","v6-wild","v6-mini"];
 var LS_DRAFT="suno-koubou-draft-v1", LS_SAVED="suno-koubou-saved-v1";
 /* v8で追加（既存の保存データとは別の場所に入れる） */
 var LS_PREF="suno-koubou-prefs-v1", LS_FAV="suno-koubou-fav-v1", LS_REMIX="suno-koubou-remix-v1";
-var SEL_DEF=8;
+var TAG_LIM_DEF=12, SEL_DEF=TAG_LIM_DEF;
 
 function lyBlank(){return {kana:true,theme:"",lang:"ja+",pov:"auto",tone:[],rhyme:"no",lines:"4",hookTitle:true,engHook:false,confirm:true,engChorus:false,noRepeat:false,varyChorus:false,catchy:false,inc:"",avoid:""};}
 function blank(){
@@ -812,7 +812,9 @@ function applyLyrics(st,res){
   if(!st.title.trim()&&typeof res.title==="string"&&res.title.trim())st.title=res.title.trim().slice(0,100);
   return n;
 }
-function checks(st,style){
+/* スタイル欄のタグの数（③完成の注意と①の選びすぎメーターで共通の数え方） */
+function styleTagCount(style){return style?style.split(", ").length:0;}
+function checks(st,style,tagLim){
   var a=[],tags=allTags(st),L=LIM.v6;
   CONFLICTS.forEach(function(c){if(tags.indexOf(c[0])>=0&&tags.indexOf(c[1])>=0)a.push(["w",c[2]]);});
   if(tags.indexOf("male vocals")>=0&&tags.indexOf("female vocals")>=0&&tags.indexOf("duet")<0)a.push(["w","男女両方が入っています。掛け合いにしたいなら「デュエット」も追加すると伝わりやすいです"]);
@@ -820,8 +822,8 @@ function checks(st,style){
   var gN=st.sel.genre.length+st.sel.region.length;
   if(!gN)a.push(["w","ジャンルが空です。最初に1つ選ぶと狙い通りになりやすいです"]);
   if(gN>2)a.push(["w","ジャンル（地域つき含む）が"+gN+"個あります。混ざりすぎるので2個までがおすすめです"]);
-  var n=style?style.split(", ").length:0;
-  if(n>12)a.push(["w","タグが"+n+"個あります。12個を超えると重要な指示が薄まりやすいです"]);
+  var n=styleTagCount(style),tl=(typeof tagLim==="number"&&tagLim>=1)?tagLim:TAG_LIM_DEF;
+  if(n>tl)a.push(["w","タグが"+n+"個あります。"+tl+"個を超えると重要な指示が薄まりやすいです"]);
   /* 入れたい側と入れたくない側の両方にある言葉 */
   var ex=exList(st).map(function(x){return x.toLowerCase();}),sty=style?style.toLowerCase().split(", "):[],hit=[];
   sty.forEach(function(t){var words=t.split(/\s+/);ex.forEach(function(e){
@@ -922,7 +924,7 @@ function update(){
   $("mTitleL").textContent=S.title.length+" 文字";
   $("titleHint").textContent=S.title.length+" 文字";
   $("allModel").textContent="Sunoのモデル："+(S.sunoModel||"v6")+"（③完成タブで変えられます）";
-  var al=checks(S,style);
+  var al=checks(S,style,(typeof PREF!=="undefined"&&PREF)?PREF.selLimit:TAG_LIM_DEF);
   $("alerts").innerHTML=al.length?al.map(function(x){return '<div class="alert '+x[0]+'">'+(x[0]==="b"?"要修正：":"注意：")+esc(x[1])+'</div>';}).join(""):'<div class="alert w" style="border-left-color:var(--ok)">チェックOK：ぶつかる指定や文字数オーバーはありません</div>';
   var bad=al.filter(function(x){return x[0]==="b";}).length,warn=al.length-bad;
   $("dockWarn").textContent=bad?"要修正 "+bad:(warn?"注意 "+warn:"OK");
@@ -1468,16 +1470,16 @@ $("resetRow").addEventListener("click",function(e){
 /* ---- v8: 選びすぎメーター ---- */
 function getPref(){var p={selLimit:SEL_DEF};try{var o=JSON.parse(lsGet(LS_PREF));if(o&&typeof o==="object"&&typeof o.selLimit==="number"&&o.selLimit>=1&&o.selLimit<=40)p.selLimit=Math.round(o.selLimit);}catch(e){}return p;}
 var PREF=getPref();
-function selCount(st){return allTags(st).length;}
+function selCount(st){return styleTagCount(buildStyle(st));}
 function updateSel(){
   var n=selCount(S),lim=PREF.selLimit,over=n>lim;
   $("selN").textContent=n;$("selLimL").textContent="目安 "+lim+" 個まで";$("selLimS").textContent=lim;$("selLimV").textContent=lim;
   var m=$("mSel");m.querySelector("span").style.width=Math.min(100,n/lim*100)+"%";m.classList.toggle("w",!over&&n===lim);m.classList.toggle("b",over);
   $("selBar").classList.toggle("over",over);
   $("selWarn").hidden=!over;
-  if(over)$("selWarn").textContent="選びすぎかも（目安より"+(n-lim)+"個多い）。指示が薄まりやすいので、いらないものを外すのがおすすめです。";
+  if(over)$("selWarn").textContent="選びすぎかも（タグが"+n+"個で、目安の"+lim+"個より"+(n-lim)+"個多い）。重要な指示が薄まりやすいので、いらないものを外すのがおすすめです。";
 }
-function setSelLimit(v){PREF.selLimit=Math.max(1,Math.min(40,v));lsSet(LS_PREF,JSON.stringify(PREF));updateSel();}
+function setSelLimit(v){PREF.selLimit=Math.max(1,Math.min(40,v));lsSet(LS_PREF,JSON.stringify(PREF));update();}
 $("selMinus").addEventListener("click",function(){setSelLimit(PREF.selLimit-1);});
 $("selPlus").addEventListener("click",function(){setSelLimit(PREF.selLimit+1);});
 $("selDef").addEventListener("click",function(){setSelLimit(SEL_DEF);toast("目安を"+SEL_DEF+"個に戻しました");});
