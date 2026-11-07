@@ -150,6 +150,18 @@ input[type=range]{width:100%;accent-color:var(--gold);min-height:44px}
 .allbox{display:flex;flex-direction:column;gap:10px;background:rgba(201,169,110,.05);border:1px solid var(--gold-d);border-radius:16px;padding:16px}
 .allbox>b{font-family:var(--f-disp);color:var(--gold-l);letter-spacing:.06em}
 .sec.flash{outline:2px solid var(--gold);outline-offset:2px}
+.selbar{position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:4;background:rgba(14,15,23,.93);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--line);border-radius:14px;padding:10px 14px;display:flex;flex-direction:column;gap:7px;transition:border-color .3s var(--ease)}
+.selrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.selnum{font-weight:700;font-size:14px}
+.selnum b{font-family:var(--f-disp);font-size:22px;color:var(--gold-l);margin:0 2px;font-variant-numeric:tabular-nums;transition:color .3s var(--ease)}
+.sellim{font-size:12px;color:var(--muted)}
+.selwarn{margin:0;font-size:13px;color:var(--warn)}
+.selbar.over{border-color:var(--warn)}
+.selbar.over .selnum b{color:var(--warn)}
+.selset{border:1px solid var(--line2);border-radius:14px;padding:0 14px;background:var(--surface)}
+.selset summary{cursor:pointer;min-height:44px;padding:11px 0;font-size:13.5px;color:var(--muted)}
+.selset[open]{padding-bottom:12px}
 .rule{height:1px;border:0;margin:2px 0;background:linear-gradient(90deg,transparent,var(--gold-d),transparent)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 </style>
@@ -166,9 +178,28 @@ input[type=range]{width:100%;accent-color:var(--gold);min-height:44px}
 
 <!-- ① 曲調 -->
 <section class="pane" id="p-style">
+  <div class="selbar" id="selBar" role="status" aria-live="polite">
+    <div class="selrow"><span class="selnum">今 <b id="selN">0</b> 個選択中</span><span class="sellim" id="selLimL">目安 8 個まで</span></div>
+    <div class="meter" id="mSel"><span></span></div>
+    <p class="selwarn" id="selWarn" hidden></p>
+  </div>
+  <details class="selset" id="selSet">
+    <summary>目安の数を変える（いま <span id="selLimS">8</span> 個）</summary>
+    <div class="row" style="justify-content:space-between;margin-top:10px">
+      <div class="row"><button class="btn sm" id="selMinus" aria-label="目安を1つ減らす">−1</button><span class="bpmv" id="selLimV">8</span><button class="btn sm" id="selPlus" aria-label="目安を1つ増やす">＋1</button></div>
+      <button class="btn sm" id="selDef">8に戻す</button>
+    </div>
+    <p class="muted" style="margin:8px 0 0">初期値は8個です。Sunoの公式の数字ではなく、この工房での目安です（数えるのは①曲調で選んだ項目。入れたくないもの・BPM・キー・自由追加は数えません）。</p>
+  </details>
   <div class="grp">
     <h2>お手本から始める<span class="hint">押すと全部入れ替わります</span></h2>
     <div class="presets" id="presets"></div>
+  </div>
+  <div class="card" id="favCard">
+    <b>お気に入りの曲調</b>
+    <p class="muted" style="margin:0">今の選択（曲調の項目・入れたくないもの・BPM・キー・自由追加・インスト）に名前をつけて残せます。歌詞と曲名は入りません。</p>
+    <div class="row"><input type="text" id="favName" placeholder="例: いつもの港ロック" autocomplete="off" style="flex:1 1 160px;width:auto"><button class="btn pri" id="favSave">今の選択を保存</button></div>
+    <div class="list" id="favList"></div>
   </div>
   <div class="card">
     <div class="row"><span class="badge">Suno V6</span><span class="muted">v6 / v6-wild / v6-mini 共通　スタイル1000文字・歌詞5000文字</span></div>
@@ -496,6 +527,9 @@ var RECIPES=[["whisperA","Aメロは囁く"],["beltC","サビは力強く"],["fa
 function mk(tag,text,dir,note){return {tag:tag,text:text||"",dir:(dir||[]).slice(),note:note||""};}
 var SUNO_MODELS=["v6","v6-wild","v6-mini"];
 var LS_DRAFT="suno-koubou-draft-v1", LS_SAVED="suno-koubou-saved-v1";
+/* v8で追加（既存の保存データとは別の場所に入れる） */
+var LS_PREF="suno-koubou-prefs-v1", LS_FAV="suno-koubou-fav-v1", LS_REMIX="suno-koubou-remix-v1";
+var SEL_DEF=8;
 
 function lyBlank(){return {kana:true,theme:"",lang:"ja+",pov:"auto",tone:[],rhyme:"no",lines:"4",hookTitle:true,engHook:false,confirm:true,engChorus:false,noRepeat:false,varyChorus:false,catchy:false,inc:"",avoid:""};}
 function blank(){
@@ -755,6 +789,7 @@ function update(){
   var bad=al.filter(function(x){return x[0]==="b";}).length,warn=al.length-bad;
   $("dockWarn").textContent=bad?"要修正 "+bad:(warn?"注意 "+warn:"OK");
   $("dockWarn").style.color=bad?"var(--bad)":(warn?"var(--warn)":"var(--ok)");
+  if(typeof updateSel==="function")updateSel();
   lsSet(LS_DRAFT,JSON.stringify(S));
 }
 function syncForm(){
@@ -1278,6 +1313,55 @@ $("resetRow").addEventListener("click",function(e){
   if(b.id==="resetYes"){S=blank();syncForm();toast("リセットしました（保存済みは残ります）");}
   resetArmed=false;$("resetRow").innerHTML='<button class="btn danger" id="resetBtn">全部リセット</button>';
 });
+
+/* ---- v8: 選びすぎメーター ---- */
+function getPref(){var p={selLimit:SEL_DEF};try{var o=JSON.parse(lsGet(LS_PREF));if(o&&typeof o==="object"&&typeof o.selLimit==="number"&&o.selLimit>=1&&o.selLimit<=40)p.selLimit=Math.round(o.selLimit);}catch(e){}return p;}
+var PREF=getPref();
+function selCount(st){return allTags(st).length;}
+function updateSel(){
+  var n=selCount(S),lim=PREF.selLimit,over=n>lim;
+  $("selN").textContent=n;$("selLimL").textContent="目安 "+lim+" 個まで";$("selLimS").textContent=lim;$("selLimV").textContent=lim;
+  var m=$("mSel");m.querySelector("span").style.width=Math.min(100,n/lim*100)+"%";m.classList.toggle("w",!over&&n===lim);m.classList.toggle("b",over);
+  $("selBar").classList.toggle("over",over);
+  $("selWarn").hidden=!over;
+  if(over)$("selWarn").textContent="選びすぎかも（目安より"+(n-lim)+"個多い）。指示が薄まりやすいので、いらないものを外すのがおすすめです。";
+}
+function setSelLimit(v){PREF.selLimit=Math.max(1,Math.min(40,v));lsSet(LS_PREF,JSON.stringify(PREF));updateSel();}
+$("selMinus").addEventListener("click",function(){setSelLimit(PREF.selLimit-1);});
+$("selPlus").addEventListener("click",function(){setSelLimit(PREF.selLimit+1);});
+$("selDef").addEventListener("click",function(){setSelLimit(SEL_DEF);toast("目安を"+SEL_DEF+"個に戻しました");});
+
+/* ---- v8: お気に入りの曲調 ---- */
+var FAV_KEYS=["sel","custom","exCustom","bpm","bpmOn","key","inst"];
+function getFavs(){try{var a=JSON.parse(lsGet(LS_FAV));return Array.isArray(a)?a.filter(function(x){return x&&typeof x.name==="string"&&x.data&&typeof x.data==="object";}):[];}catch(e){return [];}}
+function favPick(st){var d={};FAV_KEYS.forEach(function(k){d[k]=JSON.parse(JSON.stringify(st[k]));});return d;}
+function favApply(st,d){var base=JSON.parse(JSON.stringify(st));FAV_KEYS.forEach(function(k){if(d[k]!==undefined)base[k]=d[k];});return normalize(base);}
+var favDel=-1;
+function renderFavs(){
+  var a=getFavs();
+  if(!a.length){$("favList").innerHTML='<p class="muted" style="margin:0">お気に入りはまだありません。</p>';return;}
+  $("favList").innerHTML=a.map(function(x,i){
+    var n=0;if(x.data.sel)GROUPS.forEach(function(g){if(!g.ex&&Array.isArray(x.data.sel[g.id]))n+=x.data.sel[g.id].length;});
+    var ctl=favDel===i?'<button class="btn sm danger" data-fdel="'+i+'">本当に消す</button><button class="btn sm" data-fcancel="1">やめる</button>'
+      :'<button class="btn sm pri" data-fload="'+i+'">呼び出す</button><button class="btn sm danger" data-fask="'+i+'">削除</button>';
+    return '<div class="item"><div style="min-width:0"><div class="nm">'+esc(x.name)+'</div><div class="dt">'+n+'個選択'+(x.data.inst?"・インスト":"")+'</div></div><div class="row">'+ctl+'</div></div>';
+  }).join("");
+}
+$("favSave").addEventListener("click",function(){
+  var name=$("favName").value.trim();
+  if(!name){toast("お気に入りの名前を入れてください");$("favName").focus();return;}
+  var a=getFavs();a.unshift({name:name.slice(0,60),at:Date.now(),data:favPick(S)});
+  if(lsSet(LS_FAV,JSON.stringify(a.slice(0,50)))){$("favName").value="";favDel=-1;renderFavs();toast("「"+name+"」をお気に入りに保存しました");}
+  else toast("保存できませんでした（ブラウザの設定で保存が止められています）");
+});
+$("favList").addEventListener("click",function(e){
+  var b=e.target.closest("button");if(!b)return;var a=getFavs();
+  if(b.dataset.fload!==undefined){var x=a[+b.dataset.fload];if(x){S=favApply(S,x.data);syncForm();favDel=-1;renderFavs();toast("「"+x.name+"」を呼び出しました");}}
+  else if(b.dataset.fask!==undefined){favDel=+b.dataset.fask;renderFavs();}
+  else if(b.dataset.fcancel){favDel=-1;renderFavs();}
+  else if(b.dataset.fdel!==undefined){var nm=(a[+b.dataset.fdel]||{}).name;a.splice(+b.dataset.fdel,1);lsSet(LS_FAV,JSON.stringify(a));favDel=-1;renderFavs();toast("「"+nm+"」を削除しました");}
+});
+renderFavs();
 
 renderGroups();syncForm();
 try{if(navigator.serviceWorker){var rl=function(){$("readyLine").textContent="READY · OFFLINE CACHE ACTIVE";};if(navigator.serviceWorker.controller)rl();else navigator.serviceWorker.ready.then(rl,function(){});}}catch(e){}
